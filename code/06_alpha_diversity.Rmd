@@ -1,0 +1,284 @@
+---
+title: "Alpha diversity"
+author: "Yanxian Li<br><small>Department of Paraclinical Sciences<br>Faculty of Veterinary Medicine<br>Norwegian University of Life Sciences</small>"
+date: "<small>`r Sys.Date()`</small>"
+output:
+  html_document:
+    toc: yes
+    toc_depth: 3
+    number_sections: true
+    toc_float: 
+      collapsed: true
+    code_folding: show
+    theme: cerulean
+    self_contained: true
+  pdf_document: 
+    latex_engine: xelatex
+  word_document: default  
+---
+
+```{r style, echo = FALSE, message = FALSE, warning = FALSE}
+require(knitr)
+options(width = 120)
+opts_chunk$set(message = FALSE, error = FALSE, warning = FALSE, cache = FALSE)
+```
+
+`r Hmisc::hidingTOC(buttonLabel = "Outline (hide)", tocSide = "right",  buttonSide = "right")`
+
+# Getting ready
+
+Load packages
+
+```{r}
+library(here) # A Simpler Way to Find Your Files, CRAN
+library(tidyverse) # Easily Install and Load the 'Tidyverse', CRAN
+library(patchwork) # The Composer of Plots, CRAN
+library(afex) # Analysis of Factorial Experiments, CRAN
+library(ggResidpanel) # Panels and Interactive Versions of Diagnostic Plots, CRAN
+
+# Set seed
+set.seed(1910)
+```
+
+Load data
+
+```{r}
+# metadata
+mtd <- read_tsv(here("data/metadata.tsv"), comment = "#q2") %>%
+  rename(SampleID = "#SampleID") %>%
+  mutate(
+    Population = factor(Population, levels = c("Farmed", "Wild")),
+    Environment = factor(Environment, levels = c("Pond", "Lake"))
+  )
+  
+# alpha diversity
+alph <- readRDS(here("data/intermediate/qiime2R/tilapia/alpha_diversity.rds"))
+```
+
+Tidy data
+
+```{r}
+alph <- map_dfc(alph, ~.x$data) %>% # merge alpha diversity indices
+  rownames_to_column("SampleID") %>%
+  inner_join(mtd, by = "SampleID") %>%
+  rename(
+    "Observed ASVs" = observed_features, 
+    "Pielou's evenness" = pielou_evenness, 
+    "Shannon's index" = shannon_entropy, 
+    "Faith's PD" = faith_pd) %>%
+  pivot_longer(
+    cols = "Pielou's evenness":"Shannon's index", 
+    names_to = "alph_indx", 
+    values_to = "value") %>%
+  mutate(
+    Sample_type = case_when(
+      Sample_type == "Tilapia_farmed_pond" ~ "TFP",
+      Sample_type == "Tilapia_farmed_lake" ~ "TFL",
+      TRUE ~ "TWL" # Tilapia_wild_lake
+      ),
+    Sample_type = factor(Sample_type,levels = c("TFP", "TFL", "TWL")),
+    alph_indx = factor(
+      alph_indx, 
+      levels = c(
+        "Observed ASVs", "Pielou's evenness", "Shannon's index", "Faith's PD"
+        )
+      )
+    )
+```
+
+# Plot alpha diversity
+
+```{r, fig.width=10, fig.height=4}
+p <- alph %>% 
+  ggplot(aes(x = Sample_type, y = value)) +
+  geom_point(aes(shape = Environment), color = "Darkgrey", alpha = 0.8, size = 2) +
+  stat_summary(
+    aes(color = Population, shape = Environment),
+    fun.data = "mean_sdl", 
+    fun.args = list(mult = 1), 
+    geom = "pointrange",
+    size = 0.8) +
+  facet_wrap(~ alph_indx, scales = "free", nrow = 1) +
+  scale_y_continuous(
+    limits = c(0, NA), 
+    expand = expand_scale(mult = c(0, 0.2))
+    ) +  
+  labs(x = "Sample type") +
+  theme_bw(base_size = 14) +
+  scale_color_brewer(palette = "Set2") 
+
+p
+```
+
+# Compare alpha diversity
+
+## Farmed tilapia: pond vs.lake 
+
+### Fit linear mixed effects models
+
+Here we use the `mixed` function from the *afex* package to fit linear mixed effects models. The *p*-value of fixed effects is calculated using the Kenward-Roger approximation, which provides the best control against anti-conservative results.
+
+```{r, message=TRUE}
+# filter data
+alph_farmed <- filter(alph, Population == "Farmed")
+
+# split data
+alph_farmed_spl <- split(alph_farmed, alph_farmed$alph_indx)
+
+# fit model
+lme_farmed <- lapply(alph_farmed_spl, function(x) {
+  mixed(
+    value ~ Environment + (1|Site), 
+    data = x, 
+    method = "KR"
+    )
+  }
+)
+```
+
+Model summary.
+
+```{r}
+lapply(lme_farmed, anova)
+```
+
+### Model diagnostics
+
+Here we use the *ggResidpanel* package to produce a panel of plots for residual diagnostics.
+
+```{r, results='hide'}
+lapply(
+  seq_along(lme_farmed), 
+  function(x) 
+  {
+  # extract titles
+  main <- grid::textGrob(names(lme_farmed)[x])
+  
+  # make residual diagnostic plots
+  resid_panel <- resid_panel(lme_farmed[[x]]$full_model, plots = "all", qqbands = TRUE)
+  
+  # assemble plots
+  wrap_elements(main) / resid_panel +
+    plot_layout(heights = c(1, 10))
+  }
+)
+```
+
+Everything looks fine. As the fixed effect, `Environment`, has only 2 levels, we will not do follow-up post-hoc tests. 
+
+## Tilapia in lake: farmed vs.wild 
+
+### Fit linear mixed effects models
+
+Model fitting.
+
+```{r, message=TRUE}
+# filter data
+alph_lake <- filter(alph, Environment == "Lake")
+
+# split data
+alph_lake_spl <- split(alph_lake, alph_lake$alph_indx)
+
+# fit model
+lme_lake <- lapply(alph_lake_spl, function(x) {
+  mixed(
+    value ~ Population + (1|Site), 
+    data = x, 
+    method = "KR"
+    )
+  }
+)
+```
+
+Model summary.
+
+```{r}
+lapply(lme_lake, anova) 
+```
+
+### Model diagnostics
+
+```{r, results='hide'}
+lapply(
+  seq_along(lme_lake), 
+  function(x) 
+  {
+  # extract titles
+  main <- grid::textGrob(names(lme_lake)[x])
+  
+  # make residual diagnostic plots
+  resid_panel <- resid_panel(lme_lake[[x]]$full_model, plots = "all", qqbands = TRUE)
+  
+  # assemble plots
+  wrap_elements(main) / resid_panel +
+    plot_layout(heights = c(1, 10))
+  }
+)
+```
+
+Everything looks fine. As the fixed effect, `Population`, has only 2 levels, we will not do follow-up post-hoc tests.
+
+# Figure 3
+
+Gather *p*-values.
+
+```{r}
+pval <- c(lme_farmed, lme_lake) %>%
+  map_dfr(~rownames_to_column(.x$anova_table, "term"), .id = "alph_indx") %>%
+  select(-c(`num Df`:F)) %>%
+  mutate(alph_indx = factor(alph_indx, levels = unique(alph_indx))) %>% 
+  arrange(alph_indx) %>% 
+  rename(p = "Pr(>F)") %>% 
+  # the following 4 lines of code adjust raw p values
+  group_nest(alph_indx) %>%
+  mutate(p_adj = map(data, ~p.adjust(.x$p, method = "holm"))) %>%
+  unnest(cols = c(data, p_adj)) %>%
+  ungroup() %>%
+  mutate(
+    # format p values
+    p_adj = formatC(p_adj, format = "f", digits = 3), 
+    p_adj = gsub("= 0.000", "< 0.001", p_adj),
+    # italicize letter p; encasing p values with `` to preserve trailing zeros
+    p_adj = paste0("italic(p) == ",  "`", p_adj, "`"), 
+    # start position of horizontal bars on x-axis 
+    bar_start = ifelse(term == "Environment", "TFP", "TFL"),
+    # end position of horizontal bars on x-axis 
+    bar_end = ifelse(term == "Environment", "TFL", "TWL"),
+    # x-axis position for p value annotation 
+    xpos = (ifelse(term == "Environment", 1.5, 2.5)),
+    # y-axis position for p values and horizontal bars 
+    ypos = c(
+      2000, 2200, # Observed ASVs 
+      0.73, 0.80, # Pielou's evenness
+      7.7, 8.4, # Shannon's index 
+      275, 300) # Faith's PD
+  )
+```
+
+Add *p*-values to alpha diversity plots.
+
+```{r, fig.width=10, fig.height=5}
+p +
+  # add horizontal bars
+  geom_segment( 
+    data = pval,
+    aes(x = bar_start, xend = bar_end, y = ypos, yend = ypos)
+    ) +
+  # add p values 
+  geom_text( 
+    data = pval,
+    aes(x = xpos, y = ypos, label = p_adj),
+    parse = TRUE,
+    size = 3.5, 
+    vjust = -0.1) 
+
+# export plot
+ggsave(here("result/figure/tilapia/Figure 3.tiff"), width = 10, height = 5,
+       units = "in", dpi = 300, compression = "lzw")
+```
+
+# Session information
+
+```{r session-info}
+sessionInfo()
+```

@@ -1,0 +1,197 @@
+---
+title: "Import QIIME2 artifacts into R"
+author: "Yanxian Li<br><small>Department of Paraclinical Sciences<br>Faculty of Veterinary Medicine<br>Norwegian University of Life Sciences</small>"
+date: "<small>`r Sys.Date()`</small>"
+output:
+  html_document:
+    toc: yes
+    toc_depth: 3
+    number_sections: true
+    toc_float: 
+      collapsed: true
+    code_folding: show
+    theme: cerulean
+    self_contained: true
+  pdf_document: 
+    latex_engine: xelatex
+  word_document: default  
+---
+
+```{r style, echo = FALSE, message = FALSE, warning = FALSE}
+require(knitr)
+opts_chunk$set(message = FALSE, error = FALSE, warning = FALSE, cache = FALSE)
+```
+
+`r Hmisc::hidingTOC(buttonLabel = "Outline (hide)", tocSide = "right",  buttonSide = "right")`
+
+# Getting ready
+
+Load packages
+
+```{r load-package}
+library(here) # A Simpler Way to Find Your Files, CRAN
+library(tidyverse) # Easily Install and Load the 'Tidyverse', CRAN
+library(qiime2R) # Import qiime2 artifacts to R, [github::jbisanz/qiime2R]
+library(phyloseq) # Handling and analysis of high-throughput microbiome census data, Bioconductor
+```
+
+# Phyloseq object
+
+## Metadata
+
+```{r}
+mtd <- read_tsv(here("data/metadata.tsv"), comment = "#q2") %>%
+  rename(SampleID = "#SampleID") %>% 
+  column_to_rownames("SampleID")
+```
+
+## Feature table
+
+```{r}
+count_tbl <- read_qza(
+  here("data/intermediate/qiime2/table_merged_filtered_sepp_inserted.qza")
+  ) %>%
+  pluck("data") %>% 
+  as("matrix")
+```
+
+## Taxonomy
+
+```{r}
+txnm_tbl <- read_qza(here("data/intermediate/qiime2/taxonomy_silva132.qza")) %>%
+  pluck("data") %>%
+  as.data.frame() %>%
+  mutate(
+    Taxon = gsub("D_0", "k", Taxon), 
+    Taxon = gsub("D_1", "p", Taxon),
+    Taxon = gsub("D_2", "c", Taxon), 
+    Taxon = gsub("D_3", "o", Taxon),
+    Taxon = gsub("D_4", "f", Taxon), 
+    Taxon = gsub("D_5", "g", Taxon),
+    Taxon = gsub("D_6", "s", Taxon)
+    ) %>%
+  separate(
+    col = Taxon, 
+    sep = ";", 
+    into = c("Kingdom", "Phylum", "Class", "Order", "Family", "Genus", "Species")
+    ) %>% 
+  column_to_rownames("Feature.ID") %>%
+  select(-Confidence)
+```
+
+## Phylogeny
+
+```{r}
+tree <- read_qza(here("data/intermediate/qiime2/insertion_tree.qza"))
+```
+
+## Assemble a phyloseq object
+
+Assemble data.
+
+```{r}
+ps <- phyloseq(
+  sample_data(mtd), 
+  otu_table(count_tbl, taxa_are_rows = TRUE),
+  tax_table(as.matrix(txnm_tbl)),
+  phy_tree(tree$data)
+  )
+```
+
+# Alpha-diversity
+
+## Tilapia
+
+```{r}
+# get absolute file path for alpha diversity indices
+fp_alph_tilp <- list.files(
+  here("data/intermediate/qiime2/core_metrics_results_tilapia/"), 
+  pattern = "*vector.qza", 
+  full.names = TRUE
+  )
+
+# get alpha diversity index names
+names_alph <- sapply(strsplit(basename(fp_alph_tilp), "_vector"), `[`, 1)
+
+# import alpha diversity indices
+alph_tilp <- lapply(fp_alph_tilp, read_qza)
+names(alph_tilp) <- names_alph
+```
+
+# Beta-diversity
+
+## Tilapia
+
+### Distance metrics
+
+```{r}
+# get absolute file path of core distance metrics
+fp_dist_tilp <- list.files(
+  here("data/intermediate/qiime2/core_metrics_results_tilapia/"), 
+  pattern = "*distance_matrix.qza", 
+  full.names = TRUE
+  )
+
+# get distance metric names
+names_dist <- sapply(strsplit(basename(fp_dist_tilp), "_distance"), `[`, 1)
+
+# import core distance metrics
+dist_tilp <- lapply(fp_dist_tilp, read_qza)
+names(dist_tilp) <- names_dist
+
+# import Aitchison distance
+dist_tilp_atch <- read_qza(
+  here("data/intermediate/qiime2/rpca_tilapia/distance_matrix.qza")
+  )
+
+# add Aitchison distance to the distance metric list
+dist_tilp <- c(dist_tilp, aitchison = list(dist_tilp_atch))
+```
+
+### Ordination
+
+```{r}
+# get absolute file path of pcoa results
+fp_ord_tilp <- list.files(
+  here("data/intermediate/qiime2/core_metrics_results_tilapia/"), 
+  pattern = "*pcoa_results.qza", 
+  full.names = TRUE
+  )
+
+# get file names
+names_ord <- sapply(strsplit(basename(fp_ord_tilp), "_pcoa"), `[`, 1)
+
+# import pcoa results
+ord_tilp <- lapply(fp_ord_tilp, read_qza)
+names(ord_tilp) <- names_ord
+
+# import pcoa result of Aitchison distance
+ord_tilp_atch <- read_qza(
+  here("data/intermediate/qiime2/rpca_tilapia/biplot.qza")
+  )
+
+# add pcoa result of Aitchison distance to the pcoa result list
+ord_tilp <- c(ord_tilp, aitchison = list(ord_tilp_atch))
+```
+
+# Export data
+
+```{r}
+# Phyloseq object
+saveRDS(ps, file = here("data/intermediate/qiime2R/phyloseq.rds"))
+
+# Alpha-diversity indices
+saveRDS(alph_tilp, file = here("data/intermediate/qiime2R/tilapia/alpha_diversity.rds"))
+
+# Beta-diversity: distance metric
+saveRDS(dist_tilp, file = here("data/intermediate/qiime2R/tilapia/beta_diversity_distance.rds"))
+
+# Beta-diversity: ordination
+saveRDS(ord_tilp, file = here("data/intermediate/qiime2R/tilapia/beta_diversity_ordination.rds"))
+```
+
+# Session information
+
+```{r session-info}
+sessionInfo()
+```

@@ -1,0 +1,427 @@
+---
+title: "Differential analysis"
+author: "Yanxian Li<br><small>Department of Paraclinical Sciences<br>Faculty of Veterinary Medicine<br>Norwegian University of Life Sciences</small>"
+date: "<small>`r Sys.Date()`</small>"
+output:
+  html_document:
+    toc: yes
+    toc_depth: 3
+    number_sections: true
+    toc_float: 
+      collapsed: true
+    code_folding: show
+    theme: cerulean
+    self_contained: true
+  pdf_document: 
+    latex_engine: xelatex
+  word_document: default  
+---
+
+```{r style, echo = FALSE, message = FALSE, warning = FALSE}
+require(knitr)
+options(width = 120)
+opts_chunk$set(message = FALSE, error = FALSE, warning = FALSE, cache = TRUE)
+```
+
+`r Hmisc::hidingTOC(buttonLabel = "Outline (hide)", tocSide = "left",  buttonSide = "left")`
+
+# Getting ready
+
+Load packages.
+
+```{r}
+library(here) # A Simpler Way to Find Your Files, CRAN
+library(tidyverse) # Easily Install and Load the 'Tidyverse', CRAN
+library(phyloseq) # Handling and analysis of high-throughput microbiome census data, Bioconductor
+library(MicrobeR) # Handy functions for microbiome analysis in R, [github::jbisanz/MicrobeR]
+library(Maaslin2) # Maaslin2, Bioconductor
+library(RColorBrewer) # ColorBrewer Palettes, CRAN
+library(patchwork) # The Composer of Plots, CRAN
+
+# Set seed
+set.seed(1910)
+```
+
+Load function.
+
+```{r}
+source(here("code/functions/plot_heatmap.R"))
+```
+
+Set ggplot global theme.
+
+```{r}
+theme_set(
+  theme_bw() +
+  theme(
+    legend.position = "top", 
+    strip.text = element_text(face = "italic")
+    )
+  )
+```
+
+Import data.
+
+```{r}
+ps <- readRDS(here("data/intermediate/qiime2R/phyloseq.rds"))
+ps <- subset_samples(ps, Species == "Nile tilapia") 
+```
+
+# Data preprocessing
+
+Metadata, ASV table and taxonomy.
+
+```{r}
+# metadata
+mtd <- data.frame(sample_data(ps), check.names = FALSE) %>% 
+  mutate(
+    Sample_type = case_when(
+      Sample_type == "Tilapia_farmed_pond" ~ "TFP",
+      Sample_type == "Tilapia_farmed_lake" ~ "TFL",
+      TRUE ~ "TWL" # Tilapia_wild_lake
+      ),
+    Sample_type = factor(Sample_type,levels = c("TFP", "TFL", "TWL")),
+  ) 
+
+# feature table 
+asv_tbl <- as.data.frame(otu_table(ps)) 
+
+# taxonomy 
+txnm_tbl <- tax_table(ps) %>% as("matrix") %>% as.data.frame()
+```
+
+Collapse ASV table at genus-level.
+
+```{r}
+taxa_l6 <- Summarize.Taxa(asv_tbl, txnm_tbl)$Genus %>%
+  rownames_to_column("Taxa") %>%
+  separate(
+    Taxa, 
+    sep = ";", 
+    c("Kingdom", "Phylum", "Class", "Order", "Family", "Genus")) %>% 
+  mutate(
+    Class = ifelse(
+      is.na(Class)|Class == "NA"|grepl("uncultured|Ambiguous|metagenome", Class), 
+      Phylum, 
+      Class),
+    Order = ifelse(
+      is.na(Order)|Order == "NA"|grepl("uncultured|Ambiguous|metagenome", Order), 
+      Class, 
+      Order),
+    Family = ifelse(
+      is.na(Family)|Family == "NA"|grepl("uncultured|Ambiguous|metagenome", Family), 
+      Order, 
+      Family),
+    Genus = ifelse(
+      is.na(Genus)|Genus == "NA"|grepl("uncultured|Ambiguous|metagenome", Genus), 
+      Family,
+      Genus)) %>%
+  select(-(Kingdom:Family)) %>%
+  # remove taxa rank prefix "g__" and square brackets in the taxa names
+  mutate(Genus = gsub("g__|\\[|\\]", "", Genus)) %>%
+  # merge rows with the same taxa name
+  group_by(Genus) %>%
+  summarise(across(everything(), sum)) %>%
+  column_to_rownames("Genus")
+```
+
+# Differential analysis
+
+Define fixed and random effects.
+
+```{r}
+# fixed effects
+fixef <- "Sample_type"
+
+# random effects
+ranef <- "Site"
+```
+
+## Run MaAsLin2.
+
+```{r, results='hide'}
+fit <- Maaslin2(
+  input_data = taxa_l6, 
+  input_metadata = mtd,
+  output = here("data/intermediate/maaslin2/tilapia"),
+  min_abundance = 0,
+  min_prevalence = 0.65, # keep features present in at least 24 samples
+  max_significance = 0.05,
+  normalization = "TSS",
+  transform = "LOG",
+  analysis_method = "LM",
+  fixed_effects = fixef,
+  random_effects = ranef,
+  correction = "BH",
+  standardize = FALSE, 
+  plot_heatmap = TRUE,
+  plot_scatter = TRUE,
+  reference = "Sample_type,TFL", 
+  cores = parallel::detectCores()
+  )
+```
+
+## Tidy MaAsLin2 outputs
+
+First, we tidy MaAsLin2 outputs. Note that space(" ") and dash ("-") in the original taxa names are replaced with dot (".") in the MaAsLin2 outputs. We need to fix taxa names that contain dots.
+
+```{r}
+# extract and tidy MaAsLin2 output
+fit_results <- fit$results %>%
+  mutate(
+    metadata = value, # replace variable name "Sample_type" with factor levels: "TFP", "TWL"
+    metadata = ifelse(metadata == "TFP", "tilapia_farmed_pond", "tilapia_wild_lake"),
+    metadata = factor(metadata, levels = c("tilapia_farmed_pond", "tilapia_wild_lake")),
+    # replace dot with space
+    feature = gsub("\\.", " ", feature),
+    # next, we replace space with dash
+    # there are no patterns regarding the presence of dash(-) in taxa names
+    # hence, we have to manually check and fix taxa names that contain dash(-) 
+    feature = case_when(
+      feature == "c__KD4 96" ~ "c__KD4-96",
+      feature == "c__KIST JJY010" ~ "c__KIST-JJY010",
+      feature == "f__67 14" ~ "f__67-14",
+      feature == "f__B1 7BS" ~ "f__B1-7BS",
+      feature == "f__JG30 KF CM45" ~ "f__JG30-KF-CM45",
+      feature == "f__SC I 84" ~ "f__SC-I-84",
+      feature == "o__1 20" ~ "o__1-20",
+      feature == "o__RBG 13 54 9" ~ "o__RBG-13-54-9",
+      feature == "o__SJA 15" ~ "o__SJA-15",
+      feature == "X966 1" ~ "966-1",
+      TRUE ~ feature
+      )
+    )
+```
+
+Now we combine MaAsLin2 outputs, feature table and sample metadata.
+
+```{r}
+# convert counts into relative abundances
+taxa_l6_tss <- mutate(taxa_l6, across(everything(), ~.x/sum(.x)))
+  
+# filter deferentially abundant features
+fit_sig <- filter(fit_results, qval <= 0.05) %>%
+  inner_join(rownames_to_column(taxa_l6_tss, "feature"), by = "feature") %>%
+  pivot_longer(
+    cols = "01":"42", 
+    names_to = "SampleID", 
+    values_to = "Abundance") %>%
+  inner_join(rownames_to_column(mtd, "SampleID"), by = "SampleID") %>%
+  mutate(
+    qval = ifelse(qval < 0.001, "< 0.001", round(qval, 3)), 
+    # add q-values to text annotation 
+    ann_qval = paste0("q-value: ", qval)
+  ) 
+```
+
+## Visualize MaAsLin2 outputs  
+
+### Heatmap
+
+In total, MaAsLin2 identified `r n_distinct(fit_sig$feature)` deferentially abundant features.
+
+```{r, fig.width=5.5, fig.height=10}
+hmp <- plot_heatmap(
+  maaslin2_output = fit_results,
+  qval_cutoff = 0.05,
+  first_n = n_distinct(fit_sig$feature), # number of features to display
+  cell_value = "qval", # "pval", "qval", "coef"
+  plot_title = FALSE,
+  legend_title = FALSE,
+  legend_title_position = "topcenter", # topcenter, topleft, leftcenter-rot, lefttop-rot
+  legend_direction = "horizontal", # "vertical", "horizontal"
+  color = c("blue", "grey90", "red"),
+  board_line_col = "white",
+  colnames_rotate = 0,
+  colnames_fontsize = 10,
+  rownames_fontsize = 10,
+  italize_rownames = TRUE)
+
+draw(
+  hmp, 
+  padding = unit(c(2, 2, 2, 20), "mm"), # bottom, left, top and right
+  heatmap_legend_side = "top"
+)
+```
+
+### Boxplot
+
+#### Farmed tilapia 
+
+```{r, fig.width=11, fig.height=7}
+# filter deferentially abundant features between tilapia farmed in lake and pond
+ fit_sig_farmed <- fit_sig %>% 
+  filter(value == "TFP" & Population == "Farmed") %>%
+  # add the number of non-zero observations to the text annotation
+  group_by(feature, Environment) %>%
+  summarize(N = n(), n_not_zero = paste0(sum(Abundance != 0), "/", N)) %>%
+  mutate(ann_n.not.zero = paste0("N.not.zero(", Environment, "): ", n_not_zero)) %>%
+  group_by(feature) %>%
+  summarize(ann_n.not.zero = paste0(ann_n.not.zero, collapse = "\n")) %>%
+  inner_join(
+    filter(fit_sig, value == "TFP" & Population == "Farmed"), 
+    by = "feature"
+    ) %>%
+  mutate(ann = paste0(ann_qval, "\n", ann_n.not.zero))
+
+# plotting
+fit_sig_farmed %>%
+  ggplot(aes(x = Environment, y = Abundance)) +
+    geom_boxplot(width = 0.5, outlier.shape = NA) +
+    geom_jitter(aes(color = Environment), position = position_jitter(0.2)) +
+    geom_text(
+      aes(x = Inf, y = Inf, label = ann), size = 3, hjust = 1, vjust = 1
+      ) +
+    facet_wrap(~feature, ncol = 5, scales = "free_y") +
+    scale_y_continuous(
+      limits = c(0, NA), expand = expansion(mult = c(0, 0.6)), 
+      labels = scales::percent_format(accuracy = 0.1)
+      ) +   
+    labs(y = "Relative abundance") +
+    scale_color_manual(values = brewer.pal(4, "Set2")[c(3:4)])  
+```
+
+#### Tilapia in lake
+
+```{r, fig.width=11, fig.height=21}
+# filter deferentially abundant features between farmed and wild tilapia in lake
+ fit_sig_lake <- fit_sig %>% 
+  filter(value == "TWL" & Environment == "Lake") %>%
+  group_by(feature, Population) %>%
+  summarize(N = n(), n_not_zero = paste0(sum(Abundance != 0), "/", N)) %>%
+  mutate(ann_n.not.zero = paste0("N.not.zero(", Population, "): ", n_not_zero)) %>%
+  group_by(feature) %>%
+  summarize(ann_n.not.zero = paste0(ann_n.not.zero, collapse = "\n")) %>%
+  inner_join(
+    filter(fit_sig, value == "TWL" & Environment == "Lake"), 
+    by = "feature"
+    ) %>%
+  mutate(ann = paste0(ann_qval, "\n", ann_n.not.zero))
+
+# plotting
+fit_sig_lake %>%
+  ggplot(aes(x = Population, y = Abundance)) +
+    geom_boxplot(width = 0.5, outlier.shape = NA) +
+    geom_jitter(aes(color = Population), position = position_jitter(0.2)) +
+    geom_text(
+      aes(x = Inf, y = Inf, label = ann), size = 3, hjust = 1, vjust = 1
+      ) +
+    facet_wrap(~feature, ncol = 5, scales = "free_y") +
+    scale_y_continuous(
+      limits = c(0, NA), expand = expansion(mult = c(0, 0.6)), 
+      labels = scales::percent_format(accuracy = 0.1)
+      ) +   
+    labs(y = "Relative abundance") +
+    scale_color_manual(values = brewer.pal(4, "Set2")[c(1:2)])   
+```
+
+## Figure 5
+
+### Figure 5b
+
+Highlight deferentially abundant features between farmed tilapia in lake and pond.
+
+```{r, fig.width=5.5, fig.height=4}
+# taxa to be shown in the subplot
+fig5b_taxa_name <- c(
+  "Bacillus", "Clostridium sensu stricto 1", 
+  "f__Clostridiaceae 1", "f__Barnesiellaceae"
+  )
+
+# plot
+fig5b <- fit_sig_farmed %>% 
+  filter(feature %in% fig5b_taxa_name) %>%
+  mutate(feature = factor(feature, levels = fig5b_taxa_name)) %>%
+  ggplot(aes(x = Environment, y = Abundance)) +
+    geom_boxplot(width = 0.5, outlier.shape = NA) +
+    geom_jitter(aes(color = Environment), position = position_jitter(0.2)) +
+    geom_text(
+      aes(x = Inf, y = Inf, label = ann), 
+      size = 3, lineheight = 0.9, hjust = 1, vjust = 1
+      ) +
+    facet_wrap(~feature, ncol = 2, scales = "free_y") +
+    scale_y_continuous(
+      limits = c(0, NA), expand = expansion(mult = c(0, 0.6)), 
+      labels = scales::percent_format(accuracy = 1)
+      ) +   
+    labs(x = "", y = "Relative abundance") +
+    scale_color_manual(values = brewer.pal(4, "Set2")[c(3:4)]) +
+    theme(
+      legend.position = "right",
+      legend.margin = margin(0, 0, 0, 0),
+      legend.box.margin = margin(0, 0, 0, -5)
+      )
+
+fig5b 
+```
+
+### Figure 5c
+
+Highlight deferentially abundant features between farmed and wild tilapia in lake.
+
+```{r, fig.width=5.5, fig.height=8}
+# taxa to be shown in the subplot
+fig5c_taxa_name <- c(
+  "Aeromonas", "Bacillus", "f__Clostridiaceae 1", "f__Peptostreptococcaceae",
+  "Plesiomonas", "Romboutsia", "f__Barnesiellaceae", "Cetobacterium"
+  )
+
+# plot
+fig5c <- filter(fit_sig_lake, feature %in% fig5c_taxa_name) %>%
+  mutate(feature = factor(feature, levels = fig5c_taxa_name)) %>%
+  ggplot(aes(x = Population, y = Abundance)) +
+    geom_boxplot(width = 0.5, outlier.shape = NA) +
+    geom_jitter(aes(color = Population), position = position_jitter(0.2))  +
+    geom_text(
+      aes(x = Inf, y = Inf, label = ann), 
+      size = 3, lineheight = 0.9, hjust = 1, vjust = 1
+      ) +
+    facet_wrap(~feature, ncol = 2, scales = "free_y") +
+    scale_y_continuous(
+      limits = c(0, NA), expand = expansion(mult = c(0, 0.6)), 
+      labels = scales::percent_format(accuracy = 1)
+      ) +   
+    labs(x = "", y = "Relative abundance") +
+    scale_color_manual(values = brewer.pal(4, "Set2")[c(1:2)]) +
+    theme(
+      legend.position = "right",
+      legend.margin = margin(0, 0, 0, 0),
+      legend.box.margin = margin(0, 0, 0, -5)
+      )
+
+fig5c 
+```
+
+### Figure 5
+
+Assemble plots.
+
+```{r, fig.width=10, fig.height=12}
+# convert the heatmap into a "grob"
+fig5_main <- grid.grabExpr(
+  draw(
+    hmp, 
+    padding = unit(c(6, 2, 2, 0), "mm"), # bottom, left, top and right
+    heatmap_legend_side = "top"
+   )
+  ) 
+
+# assemble subplots
+fig5_sub <- fig5b / fig5c + theme(plot.margin = margin(l = 0, b = 0, unit = "cm")) +
+  plot_layout(heights = c(1,2)) 
+
+# heatmap + subplots
+wrap_elements(full = fig5_main) + fig5_sub +
+  plot_annotation(tag_levels = "a") +
+  plot_layout(widths = c(1.25, 1)) 
+
+# export plot
+ggsave(here("result/figure/tilapia/Figure 5.tiff"), width = 10, height = 12,
+       units = "in", dpi = 300, compression = "lzw")
+```
+
+# Session information
+
+```{r}
+sessionInfo()
+```
