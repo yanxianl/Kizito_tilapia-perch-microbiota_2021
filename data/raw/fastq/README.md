@@ -1,0 +1,1 @@
+The text files, SRR_Acc_Run*.txt, contain SRR accession numbers for downloading raw sequence data from NCBI SRA database.
