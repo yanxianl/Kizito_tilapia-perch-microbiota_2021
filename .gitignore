@@ -3,16 +3,14 @@
 .RData
 .here
 
-data/raw/casava-18-paired-end-demultiplexed-run*/**
-!data/raw/casava-18-paired-end-demultiplexed-run*/*.txt
+data/raw/fastq/run*/**
 data/reference/*silva*
 data/reference/*.biom
-data/intermediate/maaslin2/digesta/figures/
-data/intermediate/maaslin2/digesta/*.rds
-data/intermediate/maaslin2/digesta/*.log
-data/intermediate/maaslin2/mucosa/figures/
-data/intermediate/maaslin2/mucosa/*.rds
-data/intermediate/maaslin2/mucosa/*.log
+data/intermediate/qiim2/**/*.qza
+data/intermediate/maaslin2/figures/
+data/intermediate/maaslin2/*.rds
+data/intermediate/maaslin2/*.log
+
 
 code/*_cache
 code/*_files
