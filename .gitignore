@@ -3,18 +3,24 @@
 .RData
 .here
 
-data/raw/fastq/run*/**
-data/reference/*silva*
-data/reference/*.biom
-data/intermediate/qiim2/**/*.qza
-data/intermediate/maaslin2/figures/
-data/intermediate/maaslin2/*.rds
-data/intermediate/maaslin2/*.log
-
-
+# code
 code/*_cache
 code/*_files
 code/.ipynb_checkpoints
+
+# raw data
+data/raw/fastq/run*/**
+
+# reference data
+data/reference/*silva*
+data/reference/*.biom
+
+# intermediate data
+*.qza
+data/intermediate/filtering/*.biom
+/data/intermediate/maaslin2/**/figures/
+/data/intermediate/maaslin2/**/*.rds
+/data/intermediate/maaslin2/**/*.log
 
 
 
