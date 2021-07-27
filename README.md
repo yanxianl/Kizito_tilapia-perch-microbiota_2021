@@ -15,7 +15,7 @@ File organization in this project.
 #### Dependencies and locations
 
 * [Miniconda3](https://docs.conda.io/en/latest/miniconda.html) should be located in your HOME directory.
-* [QIIME2 (2021.4)](https://docs.qiime2.org/2020.11/) should be installed within a Miniconda3 environment named as `qiime2-2020.11`.
+* [QIIME2 (2021.4)](https://docs.qiime2.org/2021.4/) should be installed within a Miniconda3 environment named as `qiime2-2021.4`.
   * QIIME2 library: [DEICODE (0.2.3)](https://library.qiime2.org/plugins/deicode/19/) should be installed within the qiime2 conda environment.
   * [grabseqs (0.7.0)](https://github.com/louiejtaylor/grabseqs) should be installed within the qiime2 conda environment.
 * [Pandoc (2.5)](https://pandoc.org/index.html) should be located in your PATH.
@@ -31,7 +31,7 @@ All the code should be run from the project's root directory.
 # clone the github repository
 git clone https://github.com/yanxianl/Li_AqFl1-Microbiota_2021.git
 
-# delete the following folders; qiime2 throws an error if these folders exist in your destiny file location
+# delete the following folders; qiime throws an error if these folders exist in your destiny file location
 rm -rf \ 
 data/intermediate/qiime2/compare_runs \
 data/intermediate/qiime2/core_metrics_results_run1/ \ 
@@ -43,7 +43,7 @@ data/intermediate/qiime2/rpca_tilapia \
 ```bash
 # activate qiime2 environment
 source $HOME/miniconda3/bin/activate
-conda activate qiime2-2020.11
+conda activate qiime2-2021.4
 
 # launch jupyter notebook to run code/00_setup.ipynb interactively
 jupyter notebook
