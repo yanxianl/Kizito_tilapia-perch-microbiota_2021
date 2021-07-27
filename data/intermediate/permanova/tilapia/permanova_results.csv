@@ -1,0 +1,13 @@
+﻿Distance,Comparison,Term,df,Pseudo-F,P
+robust Aitchison,Tilapia_farmed_pond - Tilapia_farmed_lake,Environment,1,13.66,0.013
+robust Aitchison,Tilapia_farmed_pond - Tilapia_farmed_lake,Site,7,7.84,0.001
+robust Aitchison,Tilapia_farmed_pond - Tilapia_farmed_lake,Residual,15,,
+robust Aitchison,Tilapia_farmed_lake - Tilapia_wild_lake,Population ,1,14.26,0.001
+robust Aitchison,Tilapia_farmed_lake - Tilapia_wild_lake,Site,5,3.47,0.012
+robust Aitchison,Tilapia_farmed_lake - Tilapia_wild_lake,Residual,17,,
+weighted UniFrac,Tilapia_farmed_pond - Tilapia_farmed_lake,Environment,1,2.62,0.011
+weighted UniFrac,Tilapia_farmed_pond - Tilapia_farmed_lake,Site,7,3,0.002
+weighted UniFrac,Tilapia_farmed_pond - Tilapia_farmed_lake,Residual,15,,
+weighted UniFrac,Tilapia_farmed_lake - Tilapia_wild_lake,Population ,1,8.49,0.001
+weighted UniFrac,Tilapia_farmed_lake - Tilapia_wild_lake,Site,5,1.19,0.247
+weighted UniFrac,Tilapia_farmed_lake - Tilapia_wild_lake,Residual,17,,
