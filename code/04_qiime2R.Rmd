@@ -118,6 +118,21 @@ alph_tilp <- lapply(fp_alph_tilp, read_qza)
 names(alph_tilp) <- names_alph
 ```
 
+## Perch
+
+```{r}
+# get absolute file path for alpha diversity indices
+fp_alph_prch <- list.files(
+  here("data/intermediate/qiime2/core_metrics_results_perch/"), 
+  pattern = "*vector.qza", 
+  full.names = TRUE
+  )
+
+# import alpha diversity indices
+alph_prch <- lapply(fp_alph_prch, read_qza)
+names(alph_prch) <- names_alph
+```
+
 # Beta-diversity
 
 ## Tilapia
@@ -174,20 +189,104 @@ ord_tilp_atch <- read_qza(
 ord_tilp <- c(ord_tilp, aitchison = list(ord_tilp_atch))
 ```
 
-# Export data
+## Perch
+
+### Distance metrics
 
 ```{r}
-# Phyloseq object
+# get absolute file path of core distance metrics
+fp_dist_prch <- list.files(
+  here("data/intermediate/qiime2/core_metrics_results_perch/"), 
+  pattern = "*distance_matrix.qza", 
+  full.names = TRUE
+  )
+
+# import core distance metrics
+dist_prch <- lapply(fp_dist_prch, read_qza)
+names(dist_prch) <- names_dist
+
+# import Aitchison distance
+dist_prch_atch <- read_qza(
+  here("data/intermediate/qiime2/rpca_perch/distance_matrix.qza")
+  )
+
+# add Aitchison distance to the distance metric list
+dist_prch <- c(dist_prch, aitchison = list(dist_prch_atch))
+```
+
+### Ordination
+
+```{r}
+# get absolute file path of pcoa results
+fp_ord_prch <- list.files(
+  here("data/intermediate/qiime2/core_metrics_results_perch/"), 
+  pattern = "*pcoa_results.qza", 
+  full.names = TRUE
+  )
+
+# import pcoa results
+ord_prch <- lapply(fp_ord_prch, read_qza)
+names(ord_prch) <- names_ord
+
+# import pcoa result of Aitchison distance
+ord_prch_atch <- read_qza(
+  here("data/intermediate/qiime2/rpca_perch/biplot.qza")
+  )
+
+# add pcoa result of Aitchison distance to the pcoa result list
+ord_prch <- c(ord_prch, aitchison = list(ord_prch_atch))
+```
+
+# Export data
+
+## Phyloseq
+
+```{r}
 saveRDS(ps, file = here("data/intermediate/qiime2R/phyloseq.rds"))
+```
 
-# Alpha-diversity indices
-saveRDS(alph_tilp, file = here("data/intermediate/qiime2R/tilapia/alpha_diversity.rds"))
+## Tilapia
 
-# Beta-diversity: distance metric
-saveRDS(dist_tilp, file = here("data/intermediate/qiime2R/tilapia/beta_diversity_distance.rds"))
+```{r}
+# alpha-diversity indices
+saveRDS(
+  alph_tilp, 
+  file = here("data/intermediate/qiime2R/tilapia/alpha_diversity.rds")
+  )
 
-# Beta-diversity: ordination
-saveRDS(ord_tilp, file = here("data/intermediate/qiime2R/tilapia/beta_diversity_ordination.rds"))
+# beta-diversity: distance metric
+saveRDS(
+  dist_tilp, 
+  file = here("data/intermediate/qiime2R/tilapia/beta_diversity_distance.rds")
+  )
+
+# beta-diversity: ordination
+saveRDS(
+  ord_tilp, 
+  file = here("data/intermediate/qiime2R/tilapia/beta_diversity_ordination.rds")
+  )
+```
+
+## Perch
+
+```{r}
+# alpha-diversity indices
+saveRDS(
+  alph_prch, 
+  file = here("data/intermediate/qiime2R/perch/alpha_diversity.rds")
+  )
+
+# beta-diversity: distance metric
+saveRDS(
+  dist_prch, 
+  file = here("data/intermediate/qiime2R/perch/beta_diversity_distance.rds")
+  )
+
+# beta-diversity: ordination
+saveRDS(
+  ord_prch, 
+  file = here("data/intermediate/qiime2R/perch/beta_diversity_ordination.rds")
+  )
 ```
 
 # Session information

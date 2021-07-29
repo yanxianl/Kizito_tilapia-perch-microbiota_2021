@@ -11,7 +11,7 @@
 
 <meta name="author" content="Yanxian Li Department of Paraclinical Sciences Faculty of Veterinary Medicine Norwegian University of Life Sciences" />
 
-<meta name="date" content="2021-07-27" />
+<meta name="date" content="2021-07-29" />
 
 <title>Import QIIME2 artifacts into R</title>
 
@@ -255,7 +255,7 @@ div.tocify {
 
 <h1 class="title toc-ignore">Import QIIME2 artifacts into R</h1>
 <h4 class="author">Yanxian Li<br><small>Department of Paraclinical Sciences<br>Faculty of Veterinary Medicine<br>Norwegian University of Life Sciences</small></h4>
-<h4 class="date"><small>2021-07-27</small></h4>
+<h4 class="date"><small>2021-07-29</small></h4>
 
 </div>
 
@@ -353,6 +353,19 @@ names_alph &lt;- sapply(strsplit(basename(fp_alph_tilp), &quot;_vector&quot;), `
 alph_tilp &lt;- lapply(fp_alph_tilp, read_qza)
 names(alph_tilp) &lt;- names_alph</code></pre>
 </div>
+<div id="perch" class="section level2" number="3.2">
+<h2 number="3.2"><span class="header-section-number">3.2</span> Perch</h2>
+<pre class="r"><code># get absolute file path for alpha diversity indices
+fp_alph_prch &lt;- list.files(
+  here(&quot;data/intermediate/qiime2/core_metrics_results_perch/&quot;), 
+  pattern = &quot;*vector.qza&quot;, 
+  full.names = TRUE
+  )
+
+# import alpha diversity indices
+alph_prch &lt;- lapply(fp_alph_prch, read_qza)
+names(alph_prch) &lt;- names_alph</code></pre>
+</div>
 </div>
 <div id="beta-diversity" class="section level1" number="4">
 <h1 number="4"><span class="header-section-number">4</span> Beta-diversity</h1>
@@ -407,20 +420,98 @@ ord_tilp_atch &lt;- read_qza(
 ord_tilp &lt;- c(ord_tilp, aitchison = list(ord_tilp_atch))</code></pre>
 </div>
 </div>
+<div id="perch-1" class="section level2" number="4.2">
+<h2 number="4.2"><span class="header-section-number">4.2</span> Perch</h2>
+<div id="distance-metrics-1" class="section level3" number="4.2.1">
+<h3 number="4.2.1"><span class="header-section-number">4.2.1</span> Distance metrics</h3>
+<pre class="r"><code># get absolute file path of core distance metrics
+fp_dist_prch &lt;- list.files(
+  here(&quot;data/intermediate/qiime2/core_metrics_results_perch/&quot;), 
+  pattern = &quot;*distance_matrix.qza&quot;, 
+  full.names = TRUE
+  )
+
+# import core distance metrics
+dist_prch &lt;- lapply(fp_dist_prch, read_qza)
+names(dist_prch) &lt;- names_dist
+
+# import Aitchison distance
+dist_prch_atch &lt;- read_qza(
+  here(&quot;data/intermediate/qiime2/rpca_perch/distance_matrix.qza&quot;)
+  )
+
+# add Aitchison distance to the distance metric list
+dist_prch &lt;- c(dist_prch, aitchison = list(dist_prch_atch))</code></pre>
+</div>
+<div id="ordination-1" class="section level3" number="4.2.2">
+<h3 number="4.2.2"><span class="header-section-number">4.2.2</span> Ordination</h3>
+<pre class="r"><code># get absolute file path of pcoa results
+fp_ord_prch &lt;- list.files(
+  here(&quot;data/intermediate/qiime2/core_metrics_results_perch/&quot;), 
+  pattern = &quot;*pcoa_results.qza&quot;, 
+  full.names = TRUE
+  )
+
+# import pcoa results
+ord_prch &lt;- lapply(fp_ord_prch, read_qza)
+names(ord_prch) &lt;- names_ord
+
+# import pcoa result of Aitchison distance
+ord_prch_atch &lt;- read_qza(
+  here(&quot;data/intermediate/qiime2/rpca_perch/biplot.qza&quot;)
+  )
+
+# add pcoa result of Aitchison distance to the pcoa result list
+ord_prch &lt;- c(ord_prch, aitchison = list(ord_prch_atch))</code></pre>
+</div>
+</div>
 </div>
 <div id="export-data" class="section level1" number="5">
 <h1 number="5"><span class="header-section-number">5</span> Export data</h1>
-<pre class="r"><code># Phyloseq object
-saveRDS(ps, file = here(&quot;data/intermediate/qiime2R/phyloseq.rds&quot;))
+<div id="phyloseq" class="section level2" number="5.1">
+<h2 number="5.1"><span class="header-section-number">5.1</span> Phyloseq</h2>
+<pre class="r"><code>saveRDS(ps, file = here(&quot;data/intermediate/qiime2R/phyloseq.rds&quot;))</code></pre>
+</div>
+<div id="tilapia-2" class="section level2" number="5.2">
+<h2 number="5.2"><span class="header-section-number">5.2</span> Tilapia</h2>
+<pre class="r"><code># alpha-diversity indices
+saveRDS(
+  alph_tilp, 
+  file = here(&quot;data/intermediate/qiime2R/tilapia/alpha_diversity.rds&quot;)
+  )
 
-# Alpha-diversity indices
-saveRDS(alph_tilp, file = here(&quot;data/intermediate/qiime2R/tilapia/alpha_diversity.rds&quot;))
+# beta-diversity: distance metric
+saveRDS(
+  dist_tilp, 
+  file = here(&quot;data/intermediate/qiime2R/tilapia/beta_diversity_distance.rds&quot;)
+  )
 
-# Beta-diversity: distance metric
-saveRDS(dist_tilp, file = here(&quot;data/intermediate/qiime2R/tilapia/beta_diversity_distance.rds&quot;))
+# beta-diversity: ordination
+saveRDS(
+  ord_tilp, 
+  file = here(&quot;data/intermediate/qiime2R/tilapia/beta_diversity_ordination.rds&quot;)
+  )</code></pre>
+</div>
+<div id="perch-2" class="section level2" number="5.3">
+<h2 number="5.3"><span class="header-section-number">5.3</span> Perch</h2>
+<pre class="r"><code># alpha-diversity indices
+saveRDS(
+  alph_prch, 
+  file = here(&quot;data/intermediate/qiime2R/perch/alpha_diversity.rds&quot;)
+  )
 
-# Beta-diversity: ordination
-saveRDS(ord_tilp, file = here(&quot;data/intermediate/qiime2R/tilapia/beta_diversity_ordination.rds&quot;))</code></pre>
+# beta-diversity: distance metric
+saveRDS(
+  dist_prch, 
+  file = here(&quot;data/intermediate/qiime2R/perch/beta_diversity_distance.rds&quot;)
+  )
+
+# beta-diversity: ordination
+saveRDS(
+  ord_prch, 
+  file = here(&quot;data/intermediate/qiime2R/perch/beta_diversity_ordination.rds&quot;)
+  )</code></pre>
+</div>
 </div>
 <div id="session-information" class="section level1" number="6">
 <h1 number="6"><span class="header-section-number">6</span> Session information</h1>
