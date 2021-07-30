@@ -283,28 +283,19 @@ ps_ls <- ps_ls %>%
 ```{r, results='hide'}
 # base plot
 coreHmp <- map(seq_along(ps_ls), function(x){
-  if (names(ps_ls)[x] == "farmed"){
-    plot_core(ps_ls[[x]], 
-      plot.type = "heatmap", 
-      colours = rev(brewer.pal(5, "RdBu")),
-      prevalences = seq(0.1, 1, 0.1), 
-      detections = 7,
-      min.prevalence = 0.5) 
-  } else {
-    plot_core(ps_ls[[x]], 
-      plot.type = "heatmap", 
-      colours = rev(brewer.pal(5, "RdBu")),
-      prevalences = seq(0.1, 1, 0.1), 
-      detections = 8,
-      min.prevalence = 0.5) 
-    }
+  plot_core(ps_ls[[x]], 
+    plot.type = "heatmap", 
+    colours = rev(brewer.pal(5, "RdBu")),
+    prevalences = seq(0.1, 1, 0.1), 
+    detections = seq(0.0001, 0.01, length = 10),
+    min.prevalence = 0.8) 
   }
 )
 
 # names of the list elements
 names(coreHmp) <- c(
-  "Core ASVs of farmed tilapia from pond and lake", 
-  "Core ASVs of farmed and wild tilapia from lake"
+  "Core ASVs in farmed tilapia from pond and lake", 
+  "Core ASVs in farmed and wild tilapia from lake"
   )  
 
 # modify aesthetics
@@ -338,7 +329,7 @@ xlab <- map(
   coreHmp_dt, 
   ~unique(.x$DetectionThreshold) %>% as.character() %>% as.numeric() # factor to numeric
   ) %>%  
-  map(~formatC(.x * 100, format = "f", digits = 1))   
+  map(~formatC(.x * 100, format = "f", digits = 2))   
 
 # modify x axis labels
 coreHmp <- map2(coreHmp, xlab, ~.x + scale_x_discrete(labels = .y)) 
@@ -381,7 +372,7 @@ coreHmp_dt <- map(coreHmp_dt, function(x){
   select(Taxa, Genus, DetectionThreshold, Prevalence) %>%
   # italicize taxa names using R expressions
   mutate(
-    Taxa = paste0("italic(", Genus, ")", "(", Taxa, ")"),
+    Taxa = paste0("italic(", Genus, ")", " (", Taxa, ")"),
     # some taxa names contain space; tilde (~) is recognized as "space" in R expressions
     Taxa = gsub("\\s+", "~", Taxa), 
     Taxa = gsub("g__", "", Taxa),
@@ -408,13 +399,13 @@ coreHmp <- map2(coreHmp, ylab, function(x, y){
 
 ## Figure 2
 
-```{r, fig.width=10, fig.height=5}
+```{r, fig.width=14, fig.height=6}
 # assemble plots
 wrap_plots(coreHmp, nrow = 1, guides = "collect") +
   plot_annotation(tag_levels = "a")
 
 # export plot
-ggsave(here("result/figure/tilapia/Figure 2.tiff"), width = 10, height = 5,
+ggsave(here("result/figure/tilapia/Figure 2.tiff"), width = 14, height = 6,
        units = "in", dpi = 300, compression = "lzw")
 ```
 
