@@ -1,0 +1,368 @@
+---
+title: "Taxonomic analysis"
+author: "Yanxian Li<br><small>Department of Paraclinical Sciences<br>Faculty of Veterinary Medicine<br>Norwegian University of Life Sciences</small>"
+date: "<small>`r Sys.Date()`</small>"
+output:
+  html_document:
+    toc: yes
+    toc_depth: 3
+    number_sections: true
+    toc_float: 
+      collapsed: true
+    code_folding: show
+    theme: cerulean
+    self_contained: true
+  pdf_document: 
+    latex_engine: xelatex
+  word_document: default  
+---
+
+```{r style, echo = FALSE, message = FALSE, warning = FALSE}
+require(knitr)
+opts_chunk$set(message = FALSE, error = FALSE, warning = FALSE, cache = FALSE)
+```
+
+`r Hmisc::hidingTOC(buttonLabel = "Outline (hide)", tocSide = "right",  buttonSide = "right")`
+
+# Getting ready
+
+Load packages.
+
+```{r load-package}
+library(here) # A Simpler Way to Find Your Files, CRAN
+library(tidyverse) # Easily Install and Load the 'Tidyverse', CRAN
+library(MicrobeR) # Handy functions for microbiome analysis in R, [github::jbisanz/MicrobeR] 
+library(microbiome) # Microbiome Analytics, Bioconductor
+library(speedyseq) # Faster implementations of phyloseq functions, [github::mikemc/speedyseq] 
+library(RColorBrewer) # ColorBrewer Palettes, CRAN
+library(patchwork) # The Composer of Plots, CRAN
+library(flextable) # Functions for Tabular Reporting, CRAN
+library(officer) # Manipulation of Microsoft Word and PowerPoint Documents, CRAN
+```
+
+Load data.
+
+```{r}
+# load phyloseq object
+ps <- readRDS(here("data/intermediate/qiime2R/phyloseq.rds"))
+
+# filter samples
+ps <- subset_samples(ps, Population == "Wild") 
+
+# change feature names for easy display
+indx <- formatC(1:ntaxa(ps), width = nchar(ntaxa(ps)), format = "d", flag = "0")
+taxa_names(ps) <- paste0("ASV", indx)
+```
+
+Extract metadata, feature table and taxonomy 
+
+```{r}
+# metadata
+mtd <- data.frame(sample_data(ps), check.names = FALSE) 
+
+# feature table
+asv_tbl <- as.data.frame(otu_table(ps)) 
+
+# taxonomy
+txnm_tbl <- tax_table(ps) %>% as("matrix") %>% as.data.frame()
+```
+
+# Taxa barplot
+
+## Summarize data
+
+Get top 10 most abundant taxa at genus level.
+
+```{r}
+taxa_tab <- Summarize.Taxa(asv_tbl, txnm_tbl)$Genus %>% Make.Percent() 
+taxa_tab <- taxa_tab[order(rowMeans(taxa_tab), decreasing = T), ]
+Others <- colSums(taxa_tab[11:nrow(taxa_tab), ])
+taxa_tab <- rbind(taxa_tab[1:10, ], Others)
+```
+
+Tidy taxa table for making stacked bar plots.
+
+```{r}
+taxa_tab <- as.data.frame(taxa_tab) %>%
+  rownames_to_column("Taxa") %>%
+  separate(
+    Taxa, 
+    sep = ";", 
+    c("Kingdom", "Phylum", "Class", "Order", "Family", "Genus")) %>% 
+  mutate(
+    Phylum = ifelse(
+      is.na(Phylum)|Phylum == "NA"|grepl("uncultured|Ambiguous|metagenome", Phylum), 
+      Kingdom, 
+      Phylum),
+    Class = ifelse(
+      is.na(Class)|Class == "NA"|grepl("uncultured|Ambiguous|metagenome", Class), 
+      Phylum, 
+      Class),
+    Order = ifelse(
+      is.na(Order)|Order == "NA"|grepl("uncultured|Ambiguous|metagenome", Order), 
+      Class, 
+      Order),
+    Family = ifelse(
+      is.na(Family)|Family == "NA"|grepl("uncultured|Ambiguous|metagenome", Family), 
+      Order, 
+      Family),
+    Genus = ifelse(
+      is.na(Genus)|Genus == "NA"|grepl("uncultured|Ambiguous|metagenome", Genus), 
+      Family, 
+      Genus)) %>%
+  select(-Kingdom, -(Class:Family)) %>%
+  mutate(
+    Phylum = gsub("p__", "", Phylum),
+    Phylum = factor(Phylum, levels = rev(unique(Phylum))),
+    Genus = gsub("g__", "", Genus),
+    Genus = factor(Genus, levels = rev(unique(Genus)))
+    ) %>%
+  arrange(Phylum, Genus) %>%
+  mutate(Genus = factor(Genus, levels = unique(Genus))) %>%
+  pivot_longer(
+    cols = -c(Phylum, Genus), 
+    names_to = "SampleID", 
+    values_to = "Abundance"
+    ) %>%
+  inner_join(rownames_to_column(mtd, "SampleID"), by = "SampleID")
+```
+
+## Make stacked barplot
+
+Define color scheme.
+
+```{r}
+# taxa names of the most abundant genera 
+top_tax <- filter(taxa_tab, Phylum != "Others") %>% distinct(Phylum, Genus)
+
+# make functions to generate color gradients for genera within each phylum 
+getCol <- length(unique(top_tax$Phylum)) %>% # number of phyla 
+  brewer.pal(name = "Set2") %>% # base colors of color gradients
+  rev() %>%
+  map(~c(.x, "white")) %>% # start and end color of color gradients
+  map(colorRampPalette) # functions to make color gradients
+
+# generate color gradients 
+n <- dplyr::count(top_tax, Phylum) %>% pull(n) # number of genera within each phylum
+col <- map2(getCol, n, ~rev(.x(.y + 1)[1:.y])) %>% unlist() # generate color gradients & remove white color
+
+# use grey color for the category "Others"
+col <- c("grey", col)
+```
+
+Make plot.
+
+```{r}
+taxa_bar <- taxa_tab %>%
+  ggplot(aes(x = SampleID, y = Abundance, fill = Genus)) +
+  geom_bar(stat = "identity") +
+  labs(x = "Sample", y = "Relative abundance (%)") +
+  scale_y_continuous(breaks = 0:10*10, expand = c(0,0)) + 
+  scale_fill_manual(values = col) +
+  facet_wrap(~ Species, scales = "free_x") +
+  theme_bw() 
+
+taxa_bar
+```
+
+## Modify legend
+
+Modify legend using flextable.
+
+```{r}
+# legend to flextable
+lgnd_ft <- unique(taxa_tab[ , c("Genus", "Phylum")]) %>%
+  mutate(col = 11, .before = Genus) %>% # legend color
+  flextable() %>% 
+  theme_box() %>%
+  highlight(j = "col", color = col, part = "body") %>% # use legend color to highlight text
+  color(j = "col", color = col, part = "body") %>% # use legend color as font color to hide the text
+  color(j = "col", color = "white", part = "header") %>% # hide text in the table header
+  italic(i = 2:11, italic = TRUE, part = "body") %>% # italicize taxa names
+  fontsize(size = 16, part = "all") %>% # font size
+  width(j = c("col"), width = 0.2) %>% # change the width of legend column
+  height_all(height = 1) %>% # cell height
+  align(j = c("Genus", "Phylum"), align = "left", part = "all") %>% # left-align text 
+  merge_v(j = "Phylum") %>% # merge cells by phylum
+  border_remove() %>% # remove borders
+  theme_booktabs() %>% # apply table style
+  hline(i = c(1, 2, 3, 7, 10), border = fp_border(width = 1.5), part = "body") %>% # draw horizontal lines  
+  hline_top(part = "header", border = fp_border(color = "white")) # remove horizontal line in the table header
+
+# convert flextable to raster
+lgnd_rst <- as_raster(lgnd_ft, webshot = "webshot2") 
+
+# convert raster to ggplot
+lgnd_gg <- ggplot() + 
+  theme_void() + 
+  annotation_custom(grid::rasterGrob(lgnd_rst)) # top right: y = unit(0.72, "npc")
+```
+
+## Figure 1
+
+```{r, fig.width=8, fig.height=5}
+taxa_bar + theme(legend.position = "none") + lgnd_gg +
+  plot_layout(widths = c(2, 1))
+
+# export plot
+ggsave(here("result/figure/perch/Figure 1.tiff"), width = 8, height = 5,
+       units = "in", dpi = 300, compression = "lzw")
+```
+
+# Core microbiota
+
+## Data preprocessing
+
+```{r}
+# subset phyloseq
+ps_ls <- list(
+  perch = subset_samples(ps, Species == "Nile perch"),
+  tilapia = subset_samples(ps, Species == "Nile tilapia")
+  )
+
+# data filtering and transformation
+ps_ls <- ps_ls %>%
+  # remove features with zero count in all samples
+  map(~filter_taxa(.x, function(x) sum(x > 0) > 0, TRUE)) %>%
+  # total sum scaling
+  map(~transform_sample_counts(.x, function(x){x / sum(x)}))
+```
+
+## Core microbiota heatmap
+
+### Base plot
+
+```{r, results='hide'}
+# base plot
+coreHmp <- map(seq_along(ps_ls), function(x){
+  plot_core(ps_ls[[x]], 
+    plot.type = "heatmap", 
+    colours = rev(brewer.pal(5, "RdBu")),
+    prevalences = seq(0.1, 1, 0.1), 
+    detections = seq(0.0001, 0.01, length = 10),
+    min.prevalence = 0.8) 
+  }
+)
+
+# names of the list elements
+names(coreHmp) <- c(
+  "Core ASVs in wild Nile perch", 
+  "Core ASVs in wild Nile tilapia"
+  )  
+
+# modify aesthetics
+coreHmp <- map(seq_along(coreHmp), function(x){
+  coreHmp[[x]] + 
+  scale_fill_gradientn(
+    colours = rev(brewer.pal(5, "RdBu")),
+    breaks = seq(0, 1, 0.1), 
+    labels = formatC(seq(0, 1, 0.1), format = "f", digits = 1), 
+    limits = c(0, 1)) +
+  labs(
+    title = names(coreHmp)[x], 
+    x = "Detection threshold (%)", y = "") +
+  theme_bw() +
+  theme(
+    #plot.title.position = "plot",
+    #plot.title = element_text(hjust = 0.05)
+  )
+  }
+)  
+```
+
+### Format x-axis text
+
+```{r}
+# get plot data
+coreHmp_dt <- map(coreHmp, ~.x$data) 
+
+# format x axis labels
+xlab <- map(
+  coreHmp_dt, 
+  ~unique(.x$DetectionThreshold) %>% as.character() %>% as.numeric() # factor to numeric
+  ) %>%  
+  map(~formatC(.x * 100, format = "f", digits = 2))   
+
+# modify x axis labels
+coreHmp <- map2(coreHmp, xlab, ~.x + scale_x_discrete(labels = .y)) 
+```
+
+### Format y-axis text
+
+```{r}
+# ASVs shared between the core microbiome heatmaps
+core_shrd <- Reduce(intersect, lapply(coreHmp_dt, "[[", "Taxa")) %>%
+  paste0(collapse = "|")
+
+# the taxonomy of core ASVs
+coreHmp_dt <- map(coreHmp_dt, function(x){
+  txnm_tbl[levels(x$Taxa), ] %>%
+  rownames_to_column("Taxa") %>%
+  inner_join(x, by = "Taxa") %>%
+  # get the best taxonomic annotations for core taxa
+  mutate(
+    Class = ifelse(
+      is.na(Class)|Class == "NA"|grepl("uncultured|Ambiguous|metagenome", Class), 
+      Phylum, 
+      Class
+      ),
+    Order = ifelse(
+      is.na(Order)|Order == "NA"|grepl("uncultured|Ambiguous|metagenome", Order), 
+      Class, 
+      Order
+      ),
+    Family = ifelse(
+      is.na(Family)|Family == "NA"|grepl("uncultured|Ambiguous|metagenome", Family), 
+      Order, 
+      Family
+      ),
+    Genus = ifelse(
+      is.na(Genus)|Genus == "NA"|grepl("uncultured|Ambiguous|metagenome", Genus), 
+      Family, 
+      Genus)
+    ) %>%
+  select(Taxa, Genus, DetectionThreshold, Prevalence) %>%
+  # italicize taxa names using R expressions
+  mutate(
+    Taxa = paste0("italic(", Genus, ")", "(", Taxa, ")"),
+    # some taxa names contain space; tilde (~) is recognized as "space" in R expressions
+    Taxa = gsub("\\s+", "~", Taxa), 
+    Taxa = gsub("g__", "", Taxa),
+    Taxa = factor(Taxa, levels = unique(Taxa))
+    ) %>%
+  select(-Genus)
+  }
+)
+
+# parse the taxonomy of core ASVs as R expression 
+ylab <- map(coreHmp_dt, ~parse(text = levels(.x$Taxa))) 
+
+# modify y axis labels and highlight shared core ASVs in red color
+coreHmp <- map2(coreHmp, ylab, function(x, y){
+  x + scale_y_discrete(labels = y) + 
+    theme(
+      axis.text.y = element_text(
+      colour = ifelse(grepl(core_shrd, levels(x$data$Taxa)), 'red', 'black')
+        )
+      )
+    }
+  ) 
+```
+
+## Figure 2
+
+```{r, fig.width=13, fig.height=6}
+# assemble plots
+wrap_plots(coreHmp, nrow = 1, guides = "collect") +
+  plot_annotation(tag_levels = "a")
+
+# export plot
+ggsave(here("result/figure/perch/Figure 2.tiff"), width = 13, height = 6,
+       units = "in", dpi = 300, compression = "lzw")
+```
+
+# Session information
+
+```{r session-info}
+sessionInfo()
+```
