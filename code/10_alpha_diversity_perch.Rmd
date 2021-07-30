@@ -1,0 +1,218 @@
+---
+title: "Alpha diversity"
+author: "Yanxian Li<br><small>Department of Paraclinical Sciences<br>Faculty of Veterinary Medicine<br>Norwegian University of Life Sciences</small>"
+date: "<small>`r Sys.Date()`</small>"
+output:
+  html_document:
+    toc: yes
+    toc_depth: 3
+    number_sections: true
+    toc_float: 
+      collapsed: true
+    code_folding: show
+    theme: cerulean
+    self_contained: true
+  pdf_document: 
+    latex_engine: xelatex
+  word_document: default  
+---
+
+```{r style, echo = FALSE, message = FALSE, warning = FALSE}
+require(knitr)
+options(width = 120)
+opts_chunk$set(message = FALSE, error = FALSE, warning = FALSE, cache = FALSE)
+```
+
+`r Hmisc::hidingTOC(buttonLabel = "Outline (hide)", tocSide = "right",  buttonSide = "right")`
+
+# Getting ready
+
+Load packages
+
+```{r}
+library(here) # A Simpler Way to Find Your Files, CRAN
+library(tidyverse) # Easily Install and Load the 'Tidyverse', CRAN
+library(patchwork) # The Composer of Plots, CRAN
+library(afex) # Analysis of Factorial Experiments, CRAN
+library(ggResidpanel) # Panels and Interactive Versions of Diagnostic Plots, CRAN
+
+# Set seed
+set.seed(1910)
+```
+
+Load data
+
+```{r}
+# metadata
+mtd <- read_tsv(here("data/metadata.tsv"), comment = "#q2") %>%
+  rename(SampleID = "#SampleID")
+  
+# alpha diversity
+alph <- readRDS(here("data/intermediate/qiime2R/perch/alpha_diversity.rds"))
+```
+
+Tidy data
+
+```{r}
+alph <- map_dfc(alph, ~.x$data) %>% # merge alpha diversity indices
+  rownames_to_column("SampleID") %>%
+  inner_join(mtd, by = "SampleID") %>%
+  rename(
+    "Observed ASVs" = observed_features, 
+    "Pielou's evenness" = pielou_evenness, 
+    "Shannon's index" = shannon_entropy, 
+    "Faith's PD" = faith_pd) %>%
+  pivot_longer(
+    cols = "Pielou's evenness":"Shannon's index", 
+    names_to = "alph_indx", 
+    values_to = "value") %>%
+  mutate(
+    alph_indx = factor(
+      alph_indx, 
+      levels = c(
+        "Observed ASVs", "Pielou's evenness", "Shannon's index", "Faith's PD"
+        )
+      )
+    )
+```
+
+# Plot alpha diversity
+
+```{r, fig.width=9, fig.height=4}
+p <- alph %>% 
+  ggplot(aes(x = Species, y = value)) +
+  geom_point(aes(shape = Species), color = "Darkgrey", alpha = 0.8, size = 2) +
+  stat_summary(
+    aes(color = Species, shape = Species),
+    fun.data = "mean_sdl", 
+    fun.args = list(mult = 1), 
+    geom = "pointrange",
+    size = 0.8) +
+  facet_wrap(~ alph_indx, scales = "free", nrow = 1) +
+  scale_y_continuous(
+    limits = c(0, NA), 
+    expand = expand_scale(mult = c(0, 0.1))
+    ) +  
+  theme_bw(base_size = 14) +
+  scale_color_brewer(palette = "Set2") +
+  theme(legend.position = "none")
+
+p
+```
+
+# Compare alpha diversity
+
+## Fit linear mixed effects models
+
+Here we use the `mixed` function from the *afex* package to fit linear mixed effects models. The *p*-value of fixed effects is calculated using the Kenward-Roger approximation, which provides the best control against anti-conservative results.
+
+```{r, message=TRUE}
+# split data
+alph_spl <- split(alph, alph$alph_indx)
+
+# fit model
+lme <- lapply(alph_spl, function(x) {
+  mixed(
+    log1p(value) ~ Species + (1|Site), 
+    data = x, 
+    method = "KR"
+    )
+  }
+)
+```
+
+Model summary.
+
+```{r}
+lapply(lme, anova)
+```
+
+## Model diagnostics
+
+Here we use the *ggResidpanel* package to produce a panel of plots for residual diagnostics.
+
+```{r, results='hide'}
+lapply(
+  seq_along(lme), 
+  function(x) 
+  {
+  # extract title
+  main <- grid::textGrob(names(lme)[x])
+  
+  # make residual diagnostic plots
+  resid_panel <- resid_panel(lme[[x]]$full_model, plots = "all", qqbands = TRUE)
+  
+  # assemble plots
+  wrap_elements(main) / resid_panel +
+    plot_layout(heights = c(1, 10))
+  }
+)
+```
+
+Everything looks fine. As the fixed effect, `Species`, has only 2 levels, we will not do follow-up post-hoc tests. 
+
+# Figure 3
+
+Gather *p*-values.
+
+```{r}
+pval <- lme %>%
+  map_dfr(~rownames_to_column(.x$anova_table, "term"), .id = "alph_indx") %>%
+  select(-c(`num Df`:F)) %>%
+  rename(p = "Pr(>F)") %>% 
+  mutate(
+    # format p values
+    p = ifelse(
+      p < 0.001, 
+      "< 0.001", 
+      formatC(p, format = "f", digits = 3)
+      ), 
+    p = ifelse(
+      grepl("<", p), 
+      paste("italic(p)", p), 
+      paste("italic(p) ==", "`", p, "`") # encasing p values with `` to preserve trailing zeros
+    ),
+    # start position of horizontal bars on x-axis 
+    bar_start = "Nile perch",
+    # end position of horizontal bars on x-axis 
+    bar_end = "Nile tilapia",
+    # x-axis position for p value annotation 
+    xpos = 1.5,
+    # y-axis position for p values and horizontal bars 
+    ypos = c(
+      2280, # Observed ASVs 
+      0.76, # Pielou's evenness
+      8.4,  # Shannon's index 
+      310   # Faith's PD
+      ) 
+    )
+```
+
+Add *p*-values to alpha diversity plots.
+
+```{r, fig.width=9, fig.height=4}
+p +
+  # add horizontal bars
+  geom_segment( 
+    data = pval,
+    aes(x = bar_start, xend = bar_end, y = ypos, yend = ypos)
+    ) +
+  # add p values 
+  geom_text( 
+    data = pval,
+    aes(x = xpos, y = ypos, label = p),
+    parse = TRUE,
+    size = 3.5, 
+    vjust = -0.1
+    ) 
+
+# export plot
+ggsave(here("result/figure/perch/Figure 3.tiff"), width = 9, height = 4,
+       units = "in", dpi = 300, compression = "lzw")
+```
+
+# Session information
+
+```{r session-info}
+sessionInfo()
+```
