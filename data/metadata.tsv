@@ -17,12 +17,12 @@
 16	gut content	Nile tilapia	Wakiso_Lake_site2	Wakiso	Lake	Wild	Tilapia_wild_lake	Foraging	1	30.66	4.08
 17	gut content	Nile tilapia	Mukono_Lake_site1	Mukono	Lake	Wild	Tilapia_wild_lake	Foraging	1		9.08
 18	gut content	Nile tilapia	Mukono_Lake_site1	Mukono	Lake	Wild	Tilapia_wild_lake	Foraging	1	38.03	6.28
-19	gut content	Nile Perch	Mukono_Lake_site1	Mukono	Lake	Wild	Perch_wild_lake	Hunting	1	38.71	7.76
-20	gut content	Nile Perch	Mukono_Lake_site1	Mukono	Lake	Wild	Perch_wild_lake	Hunting	1	30.32	7.2
-21	gut content	Nile Perch	Jinja_Lake_site2	Jinja	Lake	Wild	Perch_wild_lake	Hunting	1	34.21	6.96
-22	gut content	Nile Perch	Jinja_Lake_site2	Jinja	Lake	Wild	Perch_wild_lake	Hunting	1		7.72
-23	gut content	Nile Perch	Wakiso_Lake_site1	Wakiso	Lake	Wild	Perch_wild_lake	Hunting	1		7.18
-24	gut content	Nile Perch	Wakiso_Lake_site1	Wakiso	Lake	Wild	Perch_wild_lake	Hunting	1	33.13	8.62
+19	gut content	Nile perch	Mukono_Lake_site1	Mukono	Lake	Wild	Perch_wild_lake	Hunting	1	38.71	7.76
+20	gut content	Nile perch	Mukono_Lake_site1	Mukono	Lake	Wild	Perch_wild_lake	Hunting	1	30.32	7.2
+21	gut content	Nile perch	Jinja_Lake_site2	Jinja	Lake	Wild	Perch_wild_lake	Hunting	1	34.21	6.96
+22	gut content	Nile perch	Jinja_Lake_site2	Jinja	Lake	Wild	Perch_wild_lake	Hunting	1		7.72
+23	gut content	Nile perch	Wakiso_Lake_site1	Wakiso	Lake	Wild	Perch_wild_lake	Hunting	1		7.18
+24	gut content	Nile perch	Wakiso_Lake_site1	Wakiso	Lake	Wild	Perch_wild_lake	Hunting	1	33.13	8.62
 25	gut content	Nile tilapia	Mukono_Lake_site2	Mukono	Lake	Farmed	Tilapia_farmed_lake	Feed_A	2	35.51	8.68
 26	gut content	Nile tilapia	Mukono_Lake_site2	Mukono	Lake	Farmed	Tilapia_farmed_lake	Feed_A	2	36.06	3.44
 27	gut content	Nile tilapia	Mukono_Lake_site2	Mukono	Lake	Farmed	Tilapia_farmed_lake	Feed_A	2	36.14	8.5
@@ -41,11 +41,11 @@
 40	gut content	Nile tilapia	Wakiso_Lake_site2	Wakiso	Lake	Wild	Tilapia_wild_lake	Foraging	2	35.45	5.7
 41	gut content	Nile tilapia	Wakiso_Lake_site2	Wakiso	Lake	Wild	Tilapia_wild_lake	Foraging	2		6.54
 42	gut content	Nile tilapia	Mukono_Lake_site1	Mukono	Lake	Wild	Tilapia_wild_lake	Foraging	2	34.5	3.6
-43	gut content	Nile Perch	Mukono_Lake_site1	Mukono	Lake	Wild	Perch_wild_lake	Hunting	2	41.73	2.94
-44	gut content	Nile Perch	Mukono_Lake_site1	Mukono	Lake	Wild	Perch_wild_lake	Hunting	2	30.08	7.22
-45	gut content	Nile Perch	Jinja_Lake_site2	Jinja	Lake	Wild	Perch_wild_lake	Hunting	2	39.97	4.86
-46	gut content	Nile Perch	Jinja_Lake_site2	Jinja	Lake	Wild	Perch_wild_lake	Hunting	2		7.24
-47	gut content	Nile Perch	Wakiso_Lake_site1	Wakiso	Lake	Wild	Perch_wild_lake	Hunting	2		6.56
-48	gut content	Nile Perch	Wakiso_Lake_site1	Wakiso	Lake	Wild	Perch_wild_lake	Hunting	2	40.74	3.34
+43	gut content	Nile perch	Mukono_Lake_site1	Mukono	Lake	Wild	Perch_wild_lake	Hunting	2	41.73	2.94
+44	gut content	Nile perch	Mukono_Lake_site1	Mukono	Lake	Wild	Perch_wild_lake	Hunting	2	30.08	7.22
+45	gut content	Nile perch	Jinja_Lake_site2	Jinja	Lake	Wild	Perch_wild_lake	Hunting	2	39.97	4.86
+46	gut content	Nile perch	Jinja_Lake_site2	Jinja	Lake	Wild	Perch_wild_lake	Hunting	2		7.24
+47	gut content	Nile perch	Wakiso_Lake_site1	Wakiso	Lake	Wild	Perch_wild_lake	Hunting	2		6.56
+48	gut content	Nile perch	Wakiso_Lake_site1	Wakiso	Lake	Wild	Perch_wild_lake	Hunting	2	40.74	3.34
 49-N1	Negative control						Negative_control		1		
 50-N2	Negative control						Negative_control		2		
