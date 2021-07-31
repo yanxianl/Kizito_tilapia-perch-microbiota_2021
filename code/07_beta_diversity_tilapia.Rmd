@@ -207,6 +207,7 @@ permanova %>%
   italic(j = 5:6, italic = TRUE, part = "head") %>% # italicize column names
   merge_v(j = c("Distance", "Comparison")) %>% # merge cells by phylum
   theme_booktabs() %>% # apply table style
+  align(align = "left", part = "all") %>% # align text to the left
   hline(i = c(3, 6, 9), part = "body") # draw horizontal lines 
 ```
 
