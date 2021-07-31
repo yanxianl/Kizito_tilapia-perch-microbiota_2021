@@ -1,0 +1,7 @@
+﻿Distance,Term,df,Pseudo-F,P
+robust Aitchison,Species,1,13.32,0.001
+robust Aitchison,Site,3,6.31,0.001
+robust Aitchison,Residual,19,,
+weighted UniFrac,Species,1,3.92,0.001
+weighted UniFrac,Site,3,0.83,0.653
+weighted UniFrac,Residual,19,,
