@@ -213,7 +213,7 @@ permanova %>%
 
 # PERMDISP
 
-PERMANOVA tests differences in both location and dispersion effects. Although PERMANOVA is robust to heterogeneity in the multivariate dispersion, it's a good practice to look at the homogeneity of multivariate dispersion following a significant PERMANVOA result. The homogeneity of multivariate dispersion can be assessed visually (PCoA plot/boxplot) or via a permutation test called PERMDISP, which is implemented in R by the `betadisper()` function from the *vegan* package. As within-group sample sizes are small (n < 5) in the present study, formal testing using PERMDISP is not meaningful. We'll visually assess the homogeneity of multivariate dispersion.
+PERMANOVA tests differences in both location and dispersion effects. Although PERMANOVA is robust to heterogeneity in the multivariate dispersion, it's a good practice to look at the homogeneity of multivariate dispersion following a significant PERMANVOA result. The homogeneity of multivariate dispersion can be assessed visually (PCoA plot/boxplot) or by a permutation test called PERMDISP, which is implemented in R by the `betadisper()` function from the *vegan* package. When within-group sample sizes are small (n < 5), formal testing with PERMDISP is not very meaningful. Visual assessment is a better option.  
 
 ## Robust Aitchison distance
 
@@ -222,7 +222,9 @@ PERMANOVA tests differences in both location and dispersion effects. Although PE
 Subset distance matrix.
 
 ```{r}
-mtd_farmed <- filter(mtd, Population == "Farmed")
+mtd_farmed <- filter(mtd, Population == "Farmed") %>%
+  mutate(Site = paste0(Environment, "_", Site))
+
 dist_atch_farmed <- dist_subset(dist_atch, mtd_farmed$SampleID) 
 ```
 
@@ -233,21 +235,24 @@ First, we check the equality of dispersion for samples (replicates) across diffe
 Compute beta-dispersion.
 
 ```{r}
-(disp_atch_farmed_site <- betadisper(
+(
+disp_atch_farmed_site <- betadisper(
   d = dist_atch_farmed, 
   group = mtd_farmed$Site, 
   type = "median", 
   bias.adjust = TRUE
-  ))
+  )
+)
 ```
 
 Visual inspection.
 
-```{r, fig.width=6}
+```{r, fig.width=6.5}
 plot_betadisper(
   disp_atch_farmed_site, 
   xlab = "Site",
-  title = "Multivariate dispersion: Site-level (farmed tilapia)") +
+  title = "Multivariate dispersion: farmed tilapia (pond vs. lake)") +
+  labs(subtitle = "robust Aitchison distance, site-level") +
   coord_flip()
 ```
 
@@ -273,21 +278,24 @@ mtd_farmed_site <- mtd_farmed %>%
 Compute beta-dispersion.
 
 ```{r}
-(disp_atch_farmed_env <- betadisper(
+(
+disp_atch_farmed_env <- betadisper(
   d = dist_atch_farmed_site, 
   group = mtd_farmed_site$Environment, 
   type = "median", 
   bias.adjust = TRUE
-  ))
+  )
+)
 ```
 
 Visual inspection.
 
-```{r, fig.width=6}
+```{r, fig.width=6.5}
 plot_betadisper(
   disp_atch_farmed_env, 
   xlab = "Environment",
-  title = "Multivariate dispersion: Environment-level (farmed tilapia)") 
+  title = "Multivariate dispersion: farmed tilapia (pond vs. lake)") +
+  labs(subtitle = "robust Aitchison distance, environment-level") 
 ```
 
 ### Tilapia in lake: farmed vs wild
@@ -306,21 +314,24 @@ dist_atch_lake <- dist_subset(dist_atch, mtd_lake$SampleID)
 Compute beta-dispersion.
 
 ```{r}
-(disp_atch_lake_site <- betadisper(
+(
+disp_atch_lake_site <- betadisper(
   d = dist_atch_lake, 
   group = mtd_lake$Site, 
   type = "median", 
   bias.adjust = TRUE
-  ))
+  )
+)
 ```
 
 Visual inspection.
 
-```{r, fig.width=6}
+```{r, fig.width=6.5}
 plot_betadisper(
   disp_atch_lake_site, 
   xlab = "Site",
-  title = "Multivariate dispersion: Site-level (tilapia in lake)") +
+  title = "Multivariate dispersion: tilapia in lake (farmed vs. wild)") +
+  labs(subtitle = "robust Aitchison distance, site-level") +
   coord_flip()
 ```
 
@@ -344,21 +355,24 @@ mtd_lake_site <- mtd_lake %>%
 Compute beta-dispersion.
 
 ```{r}
-(disp_atch_lake_pop <- betadisper(
+(
+disp_atch_lake_pop <- betadisper(
   d = dist_atch_lake_site, 
   group = mtd_lake_site$Population, 
   type = "median", 
   bias.adjust = TRUE
-  ))
+  )
+)
 ```
 
 Visual inspection.
 
-```{r, fig.width=6}
+```{r, fig.width=6.5}
 plot_betadisper(
   disp_atch_lake_pop, 
   xlab = "Population",
-  title = "Multivariate dispersion: Population-level (tilapia in lake)") 
+  title = "Multivariate dispersion: tilapia in lake (farmed vs. wild)") +
+  labs(subtitle = "robust Aitchison distance, population-level") 
 ```
 
 ## Weighted UniFrac distance
@@ -376,21 +390,24 @@ dist_wuf_farmed <- dist_subset(dist_wuf, mtd_farmed$SampleID)
 Compute beta-dispersion.
 
 ```{r}
-(disp_wuf_farmed_site <- betadisper(
+(
+disp_wuf_farmed_site <- betadisper(
   d = dist_wuf_farmed, 
   group = mtd_farmed$Site, 
   type = "median", 
   bias.adjust = TRUE
-  ))
+  )
+)
 ```
 
 Visual inspection.
 
-```{r, fig.width=6}
+```{r, fig.width=6.5}
 plot_betadisper(
   disp_wuf_farmed_site, 
   xlab = "Site",
-  title = "Multivariate dispersion: Site-level (farmed tilapia)") +
+  title = "Multivariate dispersion: farmed tilapia (pond vs. lake)") +
+  labs(subtitle = "Weighted UniFrac distance, site-level") +
   coord_flip()
 ```
 
@@ -405,21 +422,24 @@ dist_wuf_farmed_site <- dist_multi_centroids(dist_wuf_farmed, mtd_farmed$Site)
 Compute beta-dispersion.
 
 ```{r}
-(disp_wuf_farmed_env <- betadisper(
+(
+disp_wuf_farmed_env <- betadisper(
   d = dist_wuf_farmed_site, 
   group = mtd_farmed_site$Environment, 
   type = "median", 
   bias.adjust = TRUE
-  ))
+  )
+)
 ```
 
 Visual inspection.
 
-```{r, fig.width=6}
+```{r, fig.width=6.5}
 plot_betadisper(
   disp_wuf_farmed_env, 
   xlab = "Environment",
-  title = "Multivariate dispersion: Environment-level (farmed tilapia)") 
+  title = "Multivariate dispersion: farmed tilapia (pond vs. lake)") +
+  labs(subtitle = "Weighted UniFrac distance, environment-level")
 ```
 
 ### Tilapia in lake: farmed vs wild
@@ -430,19 +450,21 @@ Subset distance matrix.
 dist_wuf_lake <- dist_subset(dist_wuf, mtd_lake$SampleID) 
 ```
 
-As PERMANOVA suggests little evidence of Site effect, here we use individual sample for assessing homogeneity of multivariate dispersion at population-level.
+As PERMANOVA suggests little evidence of Site effect, here we use individual samples for assessing homogeneity of multivariate dispersion at population-level.
 
 #### Population-level
 
 Compute beta-dispersion.
 
 ```{r}
-(disp_wuf_lake_pop <- betadisper(
+(
+disp_wuf_lake_pop <- betadisper(
   d = dist_wuf_lake, 
   group = mtd_lake$Population, 
   type = "median", 
   bias.adjust = TRUE
-  ))
+  )
+)
 ```
 
 Formal permutation test with `permutest`.
@@ -453,11 +475,12 @@ permutest(disp_wuf_lake_pop, permutations = 999)
 
 Visual inspection.
 
-```{r, fig.width=6}
+```{r, fig.width=6.5}
 plot_betadisper(
   disp_wuf_lake_pop, 
   xlab = "Population",
-  title = "Multivariate dispersion: Population-level (tilapia in lake)") 
+  title = "Multivariate dispersion: tilapia in lake (farmed vs. wild)") +
+  labs(subtitle = "Weighted UniFrac distance, population-level") 
 ```
 
 # Session information
