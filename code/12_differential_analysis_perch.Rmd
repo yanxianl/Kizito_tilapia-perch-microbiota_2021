@@ -1,0 +1,342 @@
+---
+title: "Differential analysis"
+author: "Yanxian Li<br><small>Department of Paraclinical Sciences<br>Faculty of Veterinary Medicine<br>Norwegian University of Life Sciences</small>"
+date: "<small>`r Sys.Date()`</small>"
+output:
+  html_document:
+    toc: yes
+    toc_depth: 3
+    number_sections: true
+    toc_float: 
+      collapsed: true
+    code_folding: show
+    theme: cerulean
+    self_contained: true
+  pdf_document: 
+    latex_engine: xelatex
+  word_document: default  
+---
+
+```{r style, echo = FALSE, message = FALSE, warning = FALSE}
+require(knitr)
+options(width = 120)
+opts_chunk$set(message = FALSE, error = FALSE, warning = FALSE, cache = TRUE)
+```
+
+`r Hmisc::hidingTOC(buttonLabel = "Outline (hide)", tocSide = "right",  buttonSide = "right")`
+
+# Getting ready
+
+Load packages.
+
+```{r}
+library(here) # A Simpler Way to Find Your Files, CRAN
+library(tidyverse) # Easily Install and Load the 'Tidyverse', CRAN
+library(phyloseq) # Handling and analysis of high-throughput microbiome census data, Bioconductor
+library(MicrobeR) # Handy functions for microbiome analysis in R, [github::jbisanz/MicrobeR]
+library(Maaslin2) # Maaslin2, Bioconductor
+library(ggrepel) # Automatically Position Non-Overlapping Text Labels with 'ggplot2', CRAN
+library(patchwork) # The Composer of Plots, CRAN
+
+# Set seed
+set.seed(1910)
+```
+
+Set ggplot global theme.
+
+```{r}
+theme_set(
+  theme_bw() +
+  theme(
+    legend.position = "top", 
+    strip.text = element_text(face = "italic")
+    )
+  )
+```
+
+Import data.
+
+```{r}
+ps <- readRDS(here("data/intermediate/qiime2R/phyloseq.rds"))
+ps <- subset_samples(ps, Population == "Wild") 
+```
+
+# Data preprocessing
+
+Extract metadata, feature table and taxonomy.
+
+```{r}
+mtd <- data.frame(sample_data(ps), check.names = FALSE) # metadata 
+asv_tbl <- as.data.frame(otu_table(ps)) # feature table 
+txnm_tbl <- tax_table(ps) %>% as("matrix") %>% as.data.frame() # taxonomy 
+```
+
+Collapse feature table at genus-level.
+
+```{r}
+taxa_l6 <- Summarize.Taxa(asv_tbl, txnm_tbl)$Genus %>%
+  rownames_to_column("Taxa") %>%
+  separate(
+    Taxa, 
+    sep = ";", 
+    c("Kingdom", "Phylum", "Class", "Order", "Family", "Genus")
+    ) %>% 
+  mutate(
+    Class = ifelse(
+      is.na(Class)|Class == "NA"|grepl("uncultured|Ambiguous|metagenome", Class), 
+      Phylum, 
+      Class
+      ),
+    Order = ifelse(
+      is.na(Order)|Order == "NA"|grepl("uncultured|Ambiguous|metagenome", Order), 
+      Class, 
+      Order
+      ),
+    Family = ifelse(
+      is.na(Family)|Family == "NA"|grepl("uncultured|Ambiguous|metagenome", Family), 
+      Order, 
+      Family
+      ),
+    Genus = ifelse(
+      is.na(Genus)|Genus == "NA"|grepl("uncultured|Ambiguous|metagenome", Genus), 
+      Family,
+      Genus
+      )
+    ) %>%
+  select(-(Kingdom:Family)) %>%
+  # remove taxa rank prefix "g__" and square brackets in the taxa names
+  mutate(Genus = gsub("g__|\\[|\\]", "", Genus)) %>%
+  # merge rows with the same taxa name
+  group_by(Genus) %>%
+  summarise(across(everything(), sum)) %>%
+  column_to_rownames("Genus")
+```
+
+# Differential analysis
+
+Define fixed and random effects.
+
+```{r}
+# fixed effects
+fixef <- "Species"
+
+# random effects
+ranef <- "Site"
+```
+
+## Run MaAsLin2.
+
+```{r, results='hide'}
+fit <- Maaslin2(
+  input_data = taxa_l6, 
+  input_metadata = mtd,
+  output = here("data/intermediate/maaslin2/perch"),
+  min_abundance = 0,
+  min_prevalence = 0.5, # keep features present in at least half of the samples
+  max_significance = 0.05,
+  normalization = "TSS",
+  transform = "LOG",
+  analysis_method = "LM",
+  fixed_effects = fixef,
+  random_effects = ranef,
+  correction = "BH",
+  standardize = FALSE, 
+  plot_heatmap = TRUE,
+  plot_scatter = TRUE,
+  cores = parallel::detectCores()
+  )
+```
+
+## Tidy MaAsLin2 outputs
+
+First, we tidy the MaAsLin2 outputs. Note that space (" ") and dash ("-") in the original taxa names are replaced with dot (".") in the MaAsLin2 outputs. We need to fix taxa names that contain dots.
+
+```{r}
+fit_all <- fit$results %>%
+  mutate(
+    # replace dot with space
+    feature = gsub("\\.", " ", feature),
+    # next, we replace space with dash
+    # there are no patterns regarding the presence of dash (-) in the taxa names
+    # we have to manually check and fix taxa names that contain dash (-) 
+    feature = case_when(
+      feature == "c__KD4 96" ~ "c__KD4-96",
+      feature == "c__MB A2 108" ~ "c__MB-A2-108",
+      feature == "CL500 29 marine group" ~ "CL500-29 marine group",
+      feature == "CL500 3" ~ "CL500-3",
+      feature == "Cyanobium PCC 6307" ~ "Cyanobium PCC-6307",
+      feature == "f__67 14" ~ "f__67-14",
+      feature == "f__B1 7BS" ~ "f__B1-7BS",
+      feature == "f__JG30 KF CM45" ~ "f__JG30-KF-CM45",
+      feature == "f__SC I 84" ~ "f__SC-I-84",
+      feature == "Leptolyngbya ANT L52 2" ~ "Leptolyngbya ANT.L52.2",
+      feature == "Microcystis PCC 7914" ~ "Microcystis PCC-7914",
+      feature == "o__1 20" ~ "o__1-20",
+      feature == "o__SJA 15" ~ "o__SJA-15",
+      feature == "X966 1" ~ "966-1",
+      TRUE ~ feature
+      )
+    )
+```
+
+Now we filter deferentially abundant features. 
+
+```{r}
+# convert counts into relative abundances
+taxa_l6_tss <- mutate(taxa_l6, across(everything(), ~.x/sum(.x)))
+  
+# filter deferentially abundant features
+fit_sig <- filter(fit_all, qval <= 0.05) %>%
+  inner_join(rownames_to_column(taxa_l6_tss, "feature"), by = "feature") %>%
+  pivot_longer(
+    cols = "13":"48", 
+    names_to = "SampleID", 
+    values_to = "Abundance") %>%
+  inner_join(rownames_to_column(mtd, "SampleID"), by = "SampleID") %>%
+  mutate(
+    qval = ifelse(qval < 0.001, "< 0.001", round(qval, 3)), 
+    # add q-values to text annotation 
+    ann_qval = paste0("q-value: ", qval)
+  ) 
+```
+
+## Visualize MaAsLin2 outputs  
+
+In total, MaAsLin2 identified `r dplyr::n_distinct(fit_sig$feature)` deferentially abundant features.
+
+### Volcano plot
+
+An overview of deferentially abundant features with volcano plot. 
+
+```{r, fig.width=5, fig.height=5}
+# add deferential abundance testing results 
+fit_all <- fit_all %>%
+  mutate(
+    DA = case_when(
+      qval <= 0.05 & coef > 0 ~ "Lower in Nile perch",
+      qval <= 0.05 & coef < 0 ~ "Higher in Nile perch",
+      TRUE ~ "Not significant"
+    ),
+    DA = factor(
+      DA, 
+      levels = c("Higher in Nile perch", "Lower in Nile perch", "Not significant")
+      )
+  )
+
+# select deferentially abundant taxa to be labeled in the volcano plot
+taxa_to_label <- c(
+  "Aeromonas", "Brevinema" , "Candidatus Arthromitus", "Cetobacterium", 
+  "Clostridium sensu stricto 1", "f__Clostridiaceae 1", "f__Peptostreptococcaceae", 
+  "Plesiomonas", "Romboutsia"
+)
+
+# make volcano plot
+(vlcn <- ggplot(data = fit_all, aes(x = coef, y = -log10(qval), color = DA)) +
+  geom_vline(xintercept = 0, linetype = "dashed", color = "grey50") +
+  geom_hline(yintercept = -log10(0.05), linetype = "dashed", color = "grey50") +
+  geom_point() + 
+  labs(
+    x = "Coefficient", 
+    y = expression(paste("-log10(", italic("q"), "-value)")),
+    color = ""
+    ) +
+  geom_text_repel(
+    data = mutate(
+      fit_all, 
+      lab = ifelse(feature %in% taxa_to_label, feature, "")
+      ),
+    mapping = aes(label = lab),
+    box.padding = 0.45,
+    nudge_x = 0.03,
+    nudge_y = 0.03,
+    min.segment.length = 0, # always draw line segments
+    max.overlaps = Inf,
+    show.legend = FALSE # remove letter "a" in the legend
+    ) +
+  scale_color_manual(values = c("#E41A1C", "#377EB8", "grey50")) +
+  scale_x_continuous(limits = c(-3, 3), breaks = -3:3)) 
+```
+
+### Boxplot
+
+Detailed presentations of deferentially abundant features with boxplots.
+
+```{r, fig.width=11, fig.height=36}
+# add the number of non-zero observations to the text annotation
+ fit_sig <- fit_sig %>% 
+  group_by(feature, Species) %>%
+  summarize(N = n(), n_not_zero = paste0(sum(Abundance != 0), "/", N)) %>%
+  mutate(ann_n.not.zero = paste0("N.not.zero(", Species, "): ", n_not_zero)) %>%
+  group_by(feature) %>%
+  summarize(ann_n.not.zero = paste0(ann_n.not.zero, collapse = "\n")) %>%
+  inner_join(fit_sig, by = "feature") %>%
+  mutate(ann = paste0(ann_qval, "\n", ann_n.not.zero))
+
+# plotting
+ggplot(fit_sig, aes(x = Species, y = Abundance)) +
+  geom_boxplot(width = 0.5, outlier.shape = NA) +
+  geom_jitter(aes(color = Species), position = position_jitter(0.2)) +
+  geom_text(
+    aes(x = Inf, y = Inf, label = ann), size = 3, hjust = 1, vjust = 1
+    ) +
+  facet_wrap(~feature, ncol = 5, scales = "free_y") +
+  scale_y_continuous(
+    limits = c(0, NA), expand = expansion(mult = c(0, 0.5)), 
+    labels = scales::percent_format(accuracy = 0.1)
+    ) +   
+  labs(x = "", y = "Relative abundance") +
+  scale_color_brewer(palette = "Set2") 
+```
+
+## Figure 5
+
+### Figure 5b
+
+Selected deferentially abundant features to be shown in the Figure 5b.
+
+```{r, fig.width=6.5, fig.height=5}
+# names of selected taxa to be shown in the figure 5b
+fig5b_taxa_name <- c(
+  "f__Clostridiaceae 1", "Brevinema", "Candidatus Arthromitus",  
+  "Aeromonas", "f__Peptostreptococcaceae", "Romboutsia"
+)
+
+# plotting
+(fig5b <- fit_sig %>% 
+  filter(feature %in% fig5b_taxa_name) %>%
+  mutate(feature = factor(feature, levels = fig5b_taxa_name)) %>%
+  ggplot(aes(x = Species, y = Abundance)) +
+    geom_boxplot(width = 0.5, outlier.shape = NA) +
+    geom_jitter(aes(color = Species), position = position_jitter(0.2)) +
+    geom_text(
+      aes(x = Inf, y = Inf, label = ann), size = 3, hjust = 1, vjust = 1
+      ) +
+    facet_wrap(~feature, ncol = 3, scales = "free_y") +
+    scale_y_continuous(
+      limits = c(0, NA), expand = expansion(mult = c(0, 0.6)), 
+      labels = scales::percent_format(accuracy = 1)
+      ) +   
+    labs(x = "", y = "Relative abundance") +
+    scale_color_brewer(palette = "Set2")) 
+```
+
+### Figure 5
+
+Assemble plots.
+
+```{r, fig.width=12, fig.height=6}
+# assemble plots
+vlcn + fig5b +
+  plot_annotation(tag_levels = "a") +
+  plot_layout(widths = c(1, 1.2)) 
+
+# export plot
+ggsave(here("result/figure/perch/Figure 5.tiff"), width = 12, height = 6,
+       units = "in", dpi = 300, compression = "lzw")
+```
+
+# Session information
+
+```{r}
+sessionInfo()
+```
