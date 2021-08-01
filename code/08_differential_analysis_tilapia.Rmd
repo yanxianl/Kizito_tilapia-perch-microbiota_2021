@@ -167,7 +167,7 @@ First, we tidy MaAsLin2 outputs. Note that space(" ") and dash ("-") in the orig
 
 ```{r}
 # extract and tidy MaAsLin2 output
-fit_results <- fit$results %>%
+fit_all <- fit$results %>%
   mutate(
     metadata = value, # replace variable name "Sample_type" with factor levels: "TFP", "TWL"
     metadata = ifelse(metadata == "TFP", "tilapia_farmed_pond", "tilapia_wild_lake"),
@@ -200,7 +200,7 @@ Now we combine MaAsLin2 outputs, feature table and sample metadata.
 taxa_l6_tss <- mutate(taxa_l6, across(everything(), ~.x/sum(.x)))
   
 # filter deferentially abundant features
-fit_sig <- filter(fit_results, qval <= 0.05) %>%
+fit_sig <- filter(fit_all, qval <= 0.05) %>%
   inner_join(rownames_to_column(taxa_l6_tss, "feature"), by = "feature") %>%
   pivot_longer(
     cols = "01":"42", 
@@ -222,7 +222,7 @@ In total, MaAsLin2 identified `r n_distinct(fit_sig$feature)` deferentially abun
 
 ```{r, fig.width=5.5, fig.height=10}
 hmp <- plot_heatmap(
-  maaslin2_output = fit_results,
+  maaslin2_output = fit_all,
   qval_cutoff = 0.05,
   first_n = 50, # number of features to display
   cell_value = "qval", # "pval", "qval", "coef"
