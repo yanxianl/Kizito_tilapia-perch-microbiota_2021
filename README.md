@@ -7,7 +7,66 @@ Abstract here
 
 File organization in this project.
 ```
-
+root
+├── code
+│   ├── 00_setup.ipynb
+│   ├── 01_qiime2_part1.html
+│   ├── 01_qiime2_part1.ipynb
+│   ├── 02_feature_filtering.html
+│   ├── 02_feature_filtering.Rmd
+│   ├── 03_qiime2_part2.html
+│   ├── 03_qiime2_part2.ipynb
+│   ├── 04_qiime2R.html
+│   ├── 04_qiime2R.Rmd
+│   ├── 05_taxonomy_tilapia.html
+│   ├── 05_taxonomy_tilapia.Rmd
+│   ├── 06_alpha_diversity_tilapia.html
+│   ├── 06_alpha_diversity_tilapia.Rmd
+│   ├── 07_beta_diversity_tilapia.html
+│   ├── 07_beta_diversity_tilapia.Rmd
+│   ├── 08_differential_analysis_tilapia.html
+│   ├── 08_differential_analysis_tilapia.Rmd
+│   ├── 09_taxonomy_perch.html
+│   ├── 09_taxonomy_perch.Rmd
+│   ├── 10_alpha_diversity_perch.html
+│   ├── 10_alpha_diversity_perch.Rmd
+│   ├── 11_beta_diversity_perch.html
+│   ├── 11_beta_diversity_perch.Rmd
+│   ├── 12_differential_analysis_perch.html
+│   ├── 12_differential_analysis_perch.Rmd
+│   ├── functions
+│   │   ├── plot_betadisper.R
+│   │   ├── plot_frequency.R
+│   │   ├── plot_heatmap.R
+│   │   └── plot_prevalence.R
+│   └── README.md
+├── data
+│   ├── raw
+│   │   ├── fastq
+│   │   ├── qPCR
+│   │   └── README.md
+│   ├── reference
+│   │   ├── silva_132_99_16S.fna
+│   │   ├── silva_132_consensus_taxonomy_l7.txt 
+│   │   ├── sepp-refs-silva-128.qza 
+│   │   └── README.md
+│   ├── intermediate
+│   │   ├── filtering
+│   │   ├── qiime2 
+│   │   ├── qiime2R 
+│   │   ├── permanova
+│   │   └── maaslin2
+│   └── metadata.tsv
+├── result
+│    ├── figure
+│    │   ├── perch
+│    │   └── tilapia
+│    └── table
+│        ├── perch
+│        └── tilapia
+├── Kizito_tilapia-perch-microbiota_2021.Rproj
+├── LICENSE.md
+└── README.md
 ```
 
 ### How to regenerate this repository
