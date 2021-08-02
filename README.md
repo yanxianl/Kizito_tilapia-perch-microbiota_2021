@@ -5,7 +5,6 @@ Abstract here
 
 ### File organization
 
-File organization in this project.
 ```
 root
 ├── code
