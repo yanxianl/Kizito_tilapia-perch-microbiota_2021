@@ -90,10 +90,10 @@ All the code should be run from the project's root directory.
 git clone https://github.com/yanxianl/Kizito_tilapia-perch-microbiota_2021.git
 
 # delete the following folders
-rm -rf \ 
-data/intermediate/qiime2/compare_runs \
-data/intermediate/qiime2/core_metrics_results* \ 
-data/intermediate/qiime2/rpca* \
+rm -rf \
+  data/intermediate/qiime2/compare_runs/ \
+  data/intermediate/qiime2/core_metrics_results*/ \
+  data/intermediate/qiime2/rpca*/ 
 ```
 **2**.Download raw sequence data, SILVA132 reference database and SILVA128 SEPP reference phylogeny (`code/00_setup.ipynb`).
 ```bash
